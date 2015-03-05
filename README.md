@@ -16,6 +16,9 @@ Simply download and unpack a release on to your hard drive.
 
 ## Connecting
 
+### Brackets
+<Coming soon...>
+
 ### Chrome Dev Tools
 
 1. Open Chrome browse to http://localhost:9222/
@@ -35,3 +38,6 @@ Network | None
 Page | None
 Runtime | None
 Timeline | None
+
+## Building & Contributing
+<Coming soon...>
