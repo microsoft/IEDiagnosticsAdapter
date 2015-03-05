@@ -28,6 +28,9 @@ Simply download and unpack a release on to your hard drive.
 1. Open Chrome browse to http://localhost:9222/
 2. Choose a page to debug
 
+## Required Browsers
+In order to use the IE Diagnostics Adpater you need to have a IE11 installed.
+
 ## Supported Chrome Remote APIs
 The table below is a summary of the support for the various [Chrome remote debugging v1.1 protocol](https://developer.chrome.com/devtools/docs/debugger-protocol). Right now the IE Diagnostics Adapter just supports the core debugging feature set. More detailed information can be found in the wiki.  
 
