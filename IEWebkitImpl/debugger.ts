@@ -4,6 +4,7 @@
 
 
 /// <reference path="Interfaces.d.ts"/>
+/// <reference path="Common.ts"/>
 
 
 module F12.Proxy {
@@ -362,18 +363,7 @@ module F12.Proxy {
 
         private PostResponse(id: number, value: IWebKitResult): void {
             // Send the response back over the websocket
-            var response: IWebKitResponse = {
-                id: id
-            };
-
-            if (value.error) {
-                response.error = value.error;
-            }
-
-            if (value.result) {
-                response.result = value.result;
-            }
-
+            var response: IWebKitResponse = Common.CreateResponse(id, value);
             host.postMessage(JSON.stringify(response));
         }
 
