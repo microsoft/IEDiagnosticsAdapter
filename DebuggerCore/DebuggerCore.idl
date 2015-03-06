@@ -1,0 +1,74 @@
+//
+// Copyright (C) Microsoft. All rights reserved.
+//
+
+import "oaidl.idl";
+import "ocidl.idl";
+import "activdbg.idl";
+import "activdbg100.idl";
+
+// HRESULT Error Codes
+cpp_quote("static const int E_ALREADY_ATTACHED = MAKE_HRESULT(SEVERITY_ERROR, FACILITY_ITF, 0x0202);")  
+cpp_quote("static const int E_NOT_FOUND = MAKE_HRESULT(SEVERITY_ERROR, FACILITY_ITF, 0x0203);")
+
+[
+    object,
+    uuid(C293D849-6CA9-417F-BFD6-803BE20109D0),
+    dual,
+    nonextensible,
+    local,
+    pointer_default(unique)
+]
+interface IF12DebuggerDispatch : IDispatch {
+    [id(701)] HRESULT addEventListener([in, annotation("_In_")] BSTR eventName, [in, annotation("_In_")] IDispatch* listener);
+    [id(702)] HRESULT removeEventListener([in, annotation("_In_")] BSTR eventName, [in, annotation("_In_")] IDispatch* listener);
+    [id(703)] HRESULT isEventListenerAttached([in, annotation("_In_")] BSTR eventName, [in, annotation("_In_opt_")] IDispatch* listener, [out, retval, annotation("_Out_")] ULONG* attachedCount);
+    [id(704)] HRESULT removeAllEventListeners(void);
+
+    [id(1)] HRESULT enable([out, retval] VARIANT_BOOL* pSuccess);
+    [id(2)] HRESULT disable([out, retval] VARIANT_BOOL* pSuccess);
+    [id(3)] HRESULT isEnabled([out,retval] VARIANT_BOOL* isEnabled);
+    [id(4)] HRESULT connect([in] BOOL enable, [out, retval] LONG* pResult);
+    [id(5)] HRESULT disconnect([out, retval] VARIANT_BOOL* pSuccess);
+    [id(6)] HRESULT shutdown([out, retval] VARIANT_BOOL* pSuccess);
+    [id(7)] HRESULT isConnected([out, retval] VARIANT_BOOL* pIsConnected);
+
+    [id(8)] HRESULT causeBreak([in] ULONG causeBreakAction, [in] ULONG workerId, [out, retval] VARIANT_BOOL* pSuccess);
+    [id(9)] HRESULT resume([in] ULONG breakResumeAction, [out, retval] VARIANT_BOOL* pSuccess);
+
+    [id(10)] HRESULT addCodeBreakpoint([in] ULONG docId, [in] ULONG start, [in] BSTR condition, [in] BOOL isTracepoint, [out, retval] VARIANT* pvActualBp);
+    [id(11)] HRESULT addEventBreakpoint([in] VARIANT* pvEventTypes, [in] BOOL isEnabled, [in] BSTR condition, [in] BOOL isTracepoint, [out, retval] VARIANT* pvActualBp);
+    [id(12)] HRESULT addPendingBreakpoint([in] BSTR url, [in] ULONG start, [in] BSTR condition, [in] BOOL isEnabled, [in] BOOL isTracepoint, [out, retval] ULONG* pBreakpointId);
+    [id(13)] HRESULT removeBreakpoint([in] ULONG breakpointId, [out, retval] VARIANT_BOOL* pSuccess);
+    [id(14)] HRESULT updateBreakpoint([in] ULONG breakpointId, [in] BSTR condition, [in] BOOL isTracepoint, [out, retval] VARIANT_BOOL* pSuccess);
+    [id(15)] HRESULT setBreakpointEnabledState([in] ULONG breakpointId, [in] BOOL enable, [out, retval] VARIANT_BOOL* pSuccess);
+    [id(16)] HRESULT getBreakpointIdFromSourceLocation([in] ULONG docId, [in] ULONG start, [out, retval] ULONG* pBreakpointId);
+
+    [id(17)] HRESULT getThreadDescription([out, retval] BSTR* pDescription);
+    [id(18)] HRESULT getThreads([out, retval] VARIANT* pThreadsDescriptions);
+    [id(19)] HRESULT getFrames([in] LONG framesNeeded, [out,retval] VARIANT* pvFramesArray);
+    [id(20)] HRESULT getSourceText([in] ULONG docId, [out, retval] VARIANT* pvSourceTextResult);
+    [id(21)] HRESULT getLocals([in] ULONG frameId, [out, retval] ULONG* pPropertyId);
+    [id(22)] HRESULT eval([in] ULONG frameId, [in] BSTR evalString, [out, retval] VARIANT* pvPropertyInfo);
+    [id(23)] HRESULT getChildProperties([in] ULONG propertyId, [in] ULONG start, [in] ULONG length, [out, retval] VARIANT* pvPropertyInfosObject);
+    [id(24)] HRESULT setPropertyValueAsString([in] ULONG propertyId, [in] BSTR* pValue, [out, retval] VARIANT_BOOL* pSuccess);
+
+    [id(25)] HRESULT canSetNextStatement([in] ULONG docId, [in] ULONG position, [out, retval] VARIANT_BOOL* pSuccess);
+    [id(26)] HRESULT setNextStatement([in] ULONG docId, [in] ULONG position, [out, retval] VARIANT_BOOL* pSuccess);
+    [id(27)] HRESULT setBreakOnFirstChanceExceptions([in] BOOL fValue, [out, retval] VARIANT_BOOL* pSuccess);
+};
+
+[
+    uuid(97157631-8F4F-4332-AFCC-D1C20C027076),
+    version(1.0),
+]
+library DebuggerCoreLib
+{
+    [
+        uuid(FADF79EC-09E5-489E-A4E7-EE1804AE0998)
+    ]
+    coclass F12DebuggerDispatch
+    {
+        [default] interface IF12DebuggerDispatch;
+    };
+};

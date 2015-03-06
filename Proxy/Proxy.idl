@@ -1,0 +1,34 @@
+//
+// Copyright (C) Microsoft. All rights reserved.
+//
+
+import "oaidl.idl";
+  
+[
+    object,
+    uuid(E92F0BD1-2A98-41E2-99C6-611EBBEB28F4),
+    pointer_default(unique)
+]
+interface IProxySite : IUnknown {
+};
+
+[
+    uuid(D6111987-B047-4437-B4D6-D7174E43734A),
+    version(1.0),
+]
+library ProxyLib
+{
+    importlib("stdole2.tlb");
+
+    [
+        uuid(6D6481C1-BD93-48D1-837D-BB0A1B55D97F),
+    ]
+    coclass ProxySite
+    {
+        [default] interface IProxySite;
+        interface IObjectWithSite;
+        interface IOleWindow;
+    };
+};
+
+import "shobjidl.idl";
