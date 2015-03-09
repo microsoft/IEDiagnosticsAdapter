@@ -47,4 +47,4 @@ Runtime | None
 Timeline | None
 
 ## Building & Contributing
-<Coming soon...>
+To build and contribute to this project take a gander at the wiki pages on [building](https://github.com/Microsoft/IEDiagnosticsAdapter/wiki/Building) and [contributing](https://github.com/Microsoft/IEDiagnosticsAdapter/wiki/Contributing) 
