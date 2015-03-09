@@ -25,18 +25,6 @@ HRESULT WebSocketClientHost::Initialize(_In_ HWND mainHwnd)
     HRESULT hr = ScriptEngineHost::Initialize(m_hWnd);
     FAIL_IF_NOT_S_OK(hr);
 
-    // Scope for the script context
-    {
-        JsContextPtr context(m_scriptContext);
-
-        JsValueRefPtr pHostObject;
-        hr = ScriptEngineHost::InitializeRuntime(nullptr, &pHostObject);
-
-        // Add the javascript functions
-        JsErrorCode jec = this->DefineCallback(pHostObject.m_value, L"postMessageToEngine", std::bind(&WebSocketClientHost::postMessageToEngine, this, _1, _2, _3, _4));
-        FAIL_IF_ERROR(jec);
-    }
-
     return hr;
 }
 
@@ -66,11 +54,11 @@ LRESULT WebSocketClientHost::OnSetMessageHwnd(UINT nMsg, WPARAM wParam, LPARAM l
     {
         for (auto& i : m_engineMessageQueue[id])
         {
-            BSTR param = i.Detach();
-            BOOL succeeded = ::PostMessage(m_engineHosts[id], WM_MESSAGE_RECEIVE, reinterpret_cast<WPARAM>(param), 0);
+            MessageInfo* pInfoParam = i.release();
+            BOOL succeeded = ::PostMessage(m_engineHosts[id], WM_MESSAGE_RECEIVE, reinterpret_cast<WPARAM>(pInfoParam), 0);
             if (!succeeded)
             {
-                i.Attach(param);
+                i.reset(pInfoParam);
             }
         }
 
@@ -89,6 +77,17 @@ LRESULT WebSocketClientHost::OnMessageSend(UINT nMsg, WPARAM wParam, LPARAM lPar
     // Send the message to the server
     CString messageData(message);
     this->SendMessageToWebKit(messageData);
+
+    return 0;
+}
+
+LRESULT WebSocketClientHost::OnMessageReceive(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/)
+{
+    // Take ownership of the data
+    unique_ptr<MessageInfo> spInfo(reinterpret_cast<MessageInfo*>(wParam));
+
+    // Forward the message to the correct thread
+    this->SendMessageToScriptHost(std::move(spInfo), /*shouldCreateEngine*/false);
 
     return 0;
 }
@@ -128,109 +127,90 @@ LRESULT WebSocketClientHost::OnMessageFromWebKit(UINT nMsg, WPARAM wParam, LPARA
         message = lpString;
     }
 
+    // We send all messages to the debugger by default, so that it can handle code at a breakpoint
+    CString id(L"debugger");
+    CString scriptName(L"");
+    bool isInjectionMessage = false;
+
     // Check if this is a script injection message
     if (message.GetLength() > 7)
     {
         if (message.Left(7).CompareNoCase(L"inject:") == 0)
         {
-            int index = message.Find(L":", 7);
-            if (index > 7)
+            isInjectionMessage = true;
+
+            int idIndex = message.Find(L":", 7);
+            if (idIndex > 7)
             {
-                CString id = message.Mid(7, index - 7);
+                id = message.Mid(7, idIndex - 7);
                 id.MakeLower();
 
-                if (id.CompareNoCase(L"websocket") == 0)
+                idIndex++; // Skip ':'
+
+                int nameIndex = message.Find(L":", idIndex);
+                if (nameIndex > idIndex)
                 {
-                    // Inject the script into this engine
-                    CString script = message.Mid(index + 1);
-                    this->ExecuteScript(L"websocket.js", script);
-
-                    return 0;
-                }
-                else if (m_engineHosts.find(id) != m_engineHosts.end())
-                {
-                    // Send the message to the specified engine thread
-                    CComBSTR messageBstr(message);
-                    BSTR param = messageBstr.Detach();
-                    BOOL succeeded = ::PostMessage(m_engineHosts[id], WM_MESSAGE_RECEIVE, reinterpret_cast<WPARAM>(param), 0);
-                    if (!succeeded)
-                    {
-                        messageBstr.Attach(param);
-                    }
-
-                    return 0;
-                }
-                else
-                {
-                    // Store this script ready for executing when the engine starts
-                    CComBSTR messageBstr(message);
-                    m_engineMessageQueue[id].push_back(messageBstr);
-
-                    // Create the new host for this id
-                    CComBSTR idBstr(id);
-                    BSTR param = idBstr.Detach();
-                    BOOL succeeded = ::PostMessage(m_uiThreadHwnd, WM_CREATE_ENGINE, reinterpret_cast<WPARAM>(param), 0);
-                    if (!succeeded)
-                    {
-                        idBstr.Attach(param);
-                    }
-
-                    return 0;
+                    scriptName = message.Mid(idIndex, nameIndex - idIndex ); 
+                    message = message.Mid(nameIndex + 1);
                 }
             }
         }
     }
 
-    // Scope for the script context
-    {
-        JsContextPtr context(m_scriptContext);
+    // Send the message to the correct thread
+    unique_ptr<MessageInfo> spInfo(new MessageInfo());
+    spInfo->m_engineId = id;
+    spInfo->m_scriptName = scriptName;
+    spInfo->m_messageType = (isInjectionMessage ? MessageType::Inject : MessageType::Execute);
+    spInfo->m_message = message;
 
-        // Otherwise fire the onmessage event for this engine
-        const WORD argCount = 1;
-        JsValueRef args[argCount];
-        JsErrorCode jec = ::JsPointerToString(message, message.GetLength(), &args[0]);
-        jec;
-
-        this->FireEvent(L"onmessage", args, argCount);
-    }
+    HRESULT hr = this->SendMessageToScriptHost(std::move(spInfo), isInjectionMessage);
+    FAIL_IF_NOT_S_OK(hr);
 
     return 0;
 }
 
-// JavaScript Functions
-JsValueRef WebSocketClientHost::postMessageToEngine(JsValueRef callee, bool isConstructCall, JsValueRef* arguments, unsigned short argumentCount)
+// Helper functions
+HRESULT WebSocketClientHost::SendMessageToScriptHost(_In_ unique_ptr<MessageInfo>&& spInfo, _In_ bool shouldCreateEngine)
 {
-    if (argumentCount == 3)
+    HRESULT hr = S_OK;
+
+    CString id(spInfo->m_engineId);
+
+    if (m_engineHosts.find(id) != m_engineHosts.end())
     {
-        JsContextPtr context(m_scriptContext);
-
-        // Grab the id of the engine
-        const wchar_t* idParam;
-        size_t idLength;
-        JsErrorCode jec = ::JsStringToPointer(arguments[1], &idParam, &idLength);
-
-        CString id(idParam);
-        if (m_engineHosts.find(id) != m_engineHosts.end())
+        // Send the message to the specified engine thread
+        
+        MessageInfo* pInfoParam = spInfo.release();
+        BOOL succeeded = ::PostMessage(m_engineHosts[id], WM_MESSAGE_RECEIVE, reinterpret_cast<WPARAM>(pInfoParam), 0);
+        if (!succeeded)
         {
-            // Post the data to that engine
-            const wchar_t* data;
-            size_t dataLength;
-            jec = ::JsStringToPointer(arguments[2], &data, &dataLength);
+            spInfo.reset(pInfoParam);
+            hr = E_FAIL;
+        }
+    }
+    else
+    {
+        // Store this script ready for executing when the engine starts
+        m_engineMessageQueue[id].push_back(std::move(spInfo));
 
-            CComBSTR messageBstr(data);
-            BSTR param = messageBstr.Detach();
-            BOOL succeeded = ::PostMessage(m_engineHosts[id], WM_MESSAGE_RECEIVE, reinterpret_cast<WPARAM>(param), 0);
+        if (shouldCreateEngine)
+        {
+            // Create the new host for this id
+            CComBSTR idBstr(id);
+            BSTR param = idBstr.Detach();
+            BOOL succeeded = ::PostMessage(m_uiThreadHwnd, WM_CREATE_ENGINE, reinterpret_cast<WPARAM>(param), 0);
             if (!succeeded)
             {
-                messageBstr.Attach(param);
+                idBstr.Attach(param);
+                hr = E_FAIL;
             }
         }
     }
 
-    return JS_INVALID_REFERENCE;
+    return hr;
 }
 
-// Helper functions
 HRESULT WebSocketClientHost::SendMessageToWebKit(_In_ CString& message)
 {
     const size_t ucbParamsSize = sizeof(CopyDataPayload_StringMessage_Data);

@@ -84,32 +84,24 @@ LRESULT BrowserHost::OnSetMessageHwnd(UINT nMsg, WPARAM wParam, LPARAM lParam, _
 
 LRESULT BrowserHost::OnMessageReceived(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/)
 {
-    CComBSTR message;
-    message.Attach(reinterpret_cast<BSTR>(wParam));
+    // Take ownership of the data
+    unique_ptr<MessageInfo> spInfo(reinterpret_cast<MessageInfo*>(wParam));
 
     HRESULT hr = S_OK;
 
-    if (message.Length() > 7)
+    // Check if this is a script injection message
+    if (spInfo->m_messageType == MessageType::Inject)
     {
-        if (::wcsncmp(message, L"inject:", 7) == 0)
-        {
-            CString script(&message[7]);
+        // Execute the script so it gets injected into our Chakra runtime
+        hr = m_spDiagnosticsEngine->EvaluateScript(spInfo->m_message, spInfo->m_scriptName);
+        FAIL_IF_NOT_S_OK(hr);
 
-            int index = script.Find(L":");
-            if (index >= 0)
-            {
-                // Execute the script so it gets injected into our Chakra runtime
-                hr = m_spDiagnosticsEngine->EvaluateScript(script.Mid(index + 1), L"main.js");
-                FAIL_IF_NOT_S_OK(hr);
-            }
-
-            // Done
-            return 0;
-        }
+        // Done
+        return 0;
     }
 
     LPCWSTR propertyNames[] = { L"id", L"data" };
-    LPCWSTR propertyValues[] = { L"onmessage", message };
+    LPCWSTR propertyValues[] = { L"onmessage", spInfo->m_message };
     hr = m_spDiagnosticsEngine->FireScriptMessageEvent(propertyNames, propertyValues, _countof(propertyNames));
     FAIL_IF_NOT_S_OK(hr);
 

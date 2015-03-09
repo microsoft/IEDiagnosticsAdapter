@@ -2,9 +2,6 @@
 // Copyright (C) Microsoft. All rights reserved.
 //
 
-/// <reference path="MessageRelay.ts"/>
-
-
 module F12.Proxy {
     "use strict";
 
