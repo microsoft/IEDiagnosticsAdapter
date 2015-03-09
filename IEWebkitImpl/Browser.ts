@@ -2,7 +2,8 @@
 // Copyright (C) Microsoft. All rights reserved.
 //
 
-/// <reference path="Interfaces.d.ts"/>
+/// <reference path="MessageRelay.ts"/>
+
 
 module F12.Proxy {
     "use strict";
@@ -11,6 +12,26 @@ module F12.Proxy {
     declare var request: any; //todo: create some interface for request
 
     declare var browser: IBrowser;
+
+    interface IBrowser {
+        addEventListener(eventType: string, callback: Function): void;
+        removeEventListener(eventType: string, callback: Function): void;
+        /*get*/ browserMode: string;
+        /*get*/ defaultDocumentMode: number;
+        /*get*/ document: HTMLDocument;
+        /*get*/ documentMode: number;
+        elementSelectionEventsEnabled: boolean;
+        forceEdgeModeDocumentFamily: boolean;
+        workerStartupScript: string;
+
+        createSafeFunction(targetOM: any, func: Function): Function;
+        executeScript(code: string, targetFrame?: any): any;
+        highlightElement(elementOrNull: Element, marginColor: string, borderColor: string, paddingColor: string, contentColor: string): void;
+        refresh(): void;
+        takeVisualSnapshot(width?: number, height?: number, keepAspectRatio?: boolean): Blob;
+        enumerateStyleSheets(): void;
+    }
+
 
     class BrowserHandler {
         externalObj: any;
@@ -21,7 +42,18 @@ module F12.Proxy {
 
         private PostResponse(id: number, value: any) {
             // Send the response back over the websocket
-            var response: IWebKitResponse = Common.CreateResponse(id, value);
+            var response: messageResponce = {
+                id: id
+            };
+
+            if (value.error) {
+                response.error = value.error;
+            }
+
+            if (value.result) {
+                response.result = value.result;
+            }
+
             this.externalObj.sendMessage("postMessage", JSON.stringify(response));
         }
 
