@@ -5,6 +5,8 @@
 #include "stdafx.h"
 #include "DebuggerHost.h"
 
+using namespace std::placeholders;
+
 DebuggerHost::DebuggerHost() : 
     ScriptEngineHost()
 {
@@ -22,7 +24,12 @@ HRESULT DebuggerHost::Initialize(_In_ HWND proxyHwnd, _In_ IRemoteDebugApplicati
         JsContextPtr context(m_scriptContext);
 
         JsValueRefPtr pGlobalObject;
-        hr = ScriptEngineHost::InitializeRuntime(&pGlobalObject, nullptr);
+        JsValueRefPtr pHostObject;
+        hr = ScriptEngineHost::InitializeRuntime(&pGlobalObject, &pHostObject);
+
+        // Add the javascript functions
+        JsErrorCode jec = this->DefineCallback(pHostObject.m_value, L"postMessageToEngine", std::bind(&DebuggerHost::postMessageToEngine, this, _1, _2, _3, _4));
+        FAIL_IF_ERROR(jec);
 
         // Add debugger component the script uses to control IE script debugging
         hr = InitializeDebuggerComponent(pGlobalObject.m_value, pRemoteDebugApplication);
@@ -75,6 +82,42 @@ LRESULT DebuggerHost::OnDebuggerCommand(UINT nMsg, WPARAM wParam, LPARAM lParam,
     }
 
     return hr;
+}
+
+// JavaScript Functions
+JsValueRef DebuggerHost::postMessageToEngine(JsValueRef callee, bool isConstructCall, JsValueRef* arguments, unsigned short argumentCount)
+{
+    if (argumentCount == 4)
+    {
+        JsContextPtr context(m_scriptContext);
+
+        // Grab the id of the engine
+        const wchar_t* id;
+        size_t idLength;
+        JsErrorCode jec = ::JsStringToPointer(arguments[1], &id, &idLength);
+
+        bool isAtBreakpoint;
+        jec = ::JsBooleanToBool(arguments[2], &isAtBreakpoint);
+
+        // Post the data to that engine
+        const wchar_t* data;
+        size_t dataLength;
+        jec = ::JsStringToPointer(arguments[3], &data, &dataLength);
+
+        unique_ptr<MessageInfo> spInfo(new MessageInfo());
+        spInfo->m_engineId = id;
+        spInfo->m_messageType = (isAtBreakpoint ? MessageType::ExecuteAtBreak : MessageType::Execute);
+        spInfo->m_message = data;
+
+        MessageInfo* pInfoParam = spInfo.release();
+        BOOL succeeded = ::PostMessage(m_websocketHwnd, WM_MESSAGE_RECEIVE, reinterpret_cast<WPARAM>(pInfoParam), NULL);
+        if (!succeeded)
+        {
+            spInfo.reset(pInfoParam);
+        }
+    }
+
+    return JS_INVALID_REFERENCE;
 }
 
 // Helper Functions

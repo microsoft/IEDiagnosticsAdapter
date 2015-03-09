@@ -258,14 +258,11 @@ HRESULT IEDiagnosticsAdapter::ConnectToInstance(_In_ IEInstance& instance)
             BOOL succeeded = ::PostMessage(hwnd, Get_WM_SET_CONNECTION_HWND(), reinterpret_cast<WPARAM>(m_hWnd), NULL);
             ATLENSURE_RETURN_HR(succeeded, E_FAIL);
 
-            // Inject script onto the websocket client thread
-            hr = this->InjectScript(L"websocket", IDR_WEBSOCKET_SCRIPT, hwnd);
+            // Inject script onto the browser thread
+            hr = this->InjectScript(L"browser", L"browserMain.js", IDR_BROWSER_SCRIPT, hwnd);
 
             // Inject script  onto the debugger thread
-            hr = this->InjectScript(L"debugger", IDR_DEBUGGER_SCRIPT, hwnd);
-
-            // Inject script onto the browser thread
-            hr = this->InjectScript(L"browser", IDR_BROWSER_SCRIPT, hwnd);
+            hr = this->InjectScript(L"debugger", L"debuggerMain.js", IDR_DEBUGGER_SCRIPT, hwnd);
 
             // Connected
             instance.isConnected = true;
@@ -308,7 +305,7 @@ HRESULT IEDiagnosticsAdapter::SendMessageToInstance(_In_ HWND& instanceHwnd, _In
     return hr;
 }
 
-HRESULT IEDiagnosticsAdapter::InjectScript(_In_ const LPCWSTR id, _In_ const DWORD resourceId, _In_ HWND hwnd)
+HRESULT IEDiagnosticsAdapter::InjectScript(_In_ const LPCWSTR id, _In_ const LPCWSTR scriptName, _In_ const DWORD resourceId, _In_ HWND hwnd)
 {
     // Load the script that we will inject to onto the remote side
     CString script;
@@ -316,7 +313,7 @@ HRESULT IEDiagnosticsAdapter::InjectScript(_In_ const LPCWSTR id, _In_ const DWO
     FAIL_IF_NOT_S_OK(hr);
 
     CString command;
-    command.Format(L"inject:%ls:%ls", id, script);
+    command.Format(L"inject:%ls:%ls:%ls", id, scriptName, script);
     hr = this->SendMessageToInstance(hwnd, command);
     FAIL_IF_NOT_S_OK(hr);
 

@@ -25,6 +25,9 @@ public:
     HRESULT Initialize(_In_ HWND proxyHwnd, _In_ IRemoteDebugApplication* pRemoteDebugApplication);
 
 private:
+    // JavaScript Functions
+    JsValueRef postMessageToEngine(JsValueRef callee, bool isConstructCall, JsValueRef* arguments, unsigned short argumentCount);
+
     // Helper Functions
     HRESULT InitializeDebuggerComponent(_In_ JsValueRef globalObject, _In_ IRemoteDebugApplication* pRemoteDebugApplication);
 

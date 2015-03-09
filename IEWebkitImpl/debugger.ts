@@ -147,6 +147,10 @@ module F12.Proxy {
         addEventListener(type: "onmessage", listener: (data: string) => void): void;
     }
 
+    interface IProxyDebuggerDispatch extends IProxyDispatch {
+        postMessageToEngine(id: string, isAtBreakpoint: boolean, data: string);
+    }
+
     interface IDebuggerDispatch {
         addEventListener(type: string, listener: Function): void;
         addEventListener(type: "onAddDocuments", listener: (documents: IDocument[]) => void): void;
@@ -203,11 +207,12 @@ module F12.Proxy {
         result: IWebKitRemoteObject;
     }
 
-    declare var host: IProxyDispatch;
+    declare var host: IProxyDebuggerDispatch;
     declare var debug: IDebuggerDispatch;
 
     class DebuggerProxy {
         private _debugger: IDebuggerDispatch;
+        private _isAtBreakpoint: boolean;
 
         private _isAwaitingDebuggerEnableCall: boolean;
         private _isEnabled: boolean;
@@ -216,6 +221,7 @@ module F12.Proxy {
 
         constructor() {
             this._debugger = debug;
+            this._isAtBreakpoint = false;
             this._documentMap = new Map<string, number>();
             this._lineEndingsMap = new Map<number, number[]>();
 
@@ -244,6 +250,11 @@ module F12.Proxy {
             // Process a successful request
             if (request) {
                 var methodParts = request.method.split(".");
+
+                if (!this._isAtBreakpoint && methodParts[0] !== "Debugger") {
+                    return host.postMessageToEngine("browser", this._isAtBreakpoint, JSON.stringify(request));
+                }
+
                 switch (methodParts[0]) {
                     case "Runtime":
                         this.ProcessRuntime(methodParts[1], request);
@@ -259,7 +270,6 @@ module F12.Proxy {
                             this.PostResponse(request.id, r);
                             break;
                         }
-
                         this.PostResponse(request.id, {});
                         break;
                 }
@@ -391,24 +401,13 @@ module F12.Proxy {
 
             switch (method) {
                 case "evaluate":
-                    if (request.params.expression === "window.navigator.appVersion") {
+                    var prop = debug.eval(request.params.contextId, request.params.expression);
+                    if (prop) {
                         processedResult = {
-                            result: {
-                                result: {
-                                    type: "string",
-                                    value: "5.0 (Windows NT 6.3; WOW64; Trident/7.0; Touch; .NET4.0E; .NET4.0C; .NET CLR 3.5.30729; .NET CLR 2.0.50727; .NET CLR 3.0.30729; Tablet PC 2.0; InfoPath.3; rv:11.0) like Gecko"
-                                }
-                            }
-                        };
-                    } else {
-                        var prop = debug.eval(request.params.contextId, request.params.expression);
-                        if (prop) {
-                            processedResult = {
-                                result: this.GetRemoteObjectFromProp(prop)
-                            }
+                            result: this.GetRemoteObjectFromProp(prop)
                         }
                     }
-                    break;
+                     break;
 
                 case "getProperties":
                     var id = parseInt(request.params.objectId);
@@ -475,7 +474,7 @@ module F12.Proxy {
                     break;
 
                 case "disable":
-                    this._debugger.resume(BreakResumeAction.Continue);
+                    this.DebuggerResume(BreakResumeAction.Continue);
                     break;
 
                 case "enable":
@@ -515,7 +514,7 @@ module F12.Proxy {
                     break;
 
                 case "resume":
-                    this._debugger.resume(BreakResumeAction.Continue);
+                    this.DebuggerResume(BreakResumeAction.Continue);
                     break;
 
                 case "searchInContent":
@@ -563,15 +562,15 @@ module F12.Proxy {
                     break;
 
                 case "stepInto":
-                    this._debugger.resume(BreakResumeAction.StepInto);
+                    this.DebuggerResume(BreakResumeAction.StepInto);
                     break;
 
                 case "stepOut":
-                    this._debugger.resume(BreakResumeAction.StepOut);
+                    this.DebuggerResume(BreakResumeAction.StepOut);
                     break;
 
                 case "stepOver":
-                    this._debugger.resume(BreakResumeAction.StepOver);
+                    this.DebuggerResume(BreakResumeAction.StepOver);
                     break;
 
                 default:
@@ -615,6 +614,11 @@ module F12.Proxy {
             }
         }
 
+        private DebuggerResume(action: BreakResumeAction): void {
+            this._debugger.resume(action);
+            this._isAtBreakpoint = false;
+        }
+
         private onAddDocuments(documents: IDocument[]): void {
             for (var i = 0; i < documents.length; i++) {
                 var document: IDocument = documents[i];
@@ -644,6 +648,8 @@ module F12.Proxy {
         }
 
         private onBreak(breakEventInfo: IBreakEventInfo): boolean {
+            this._isAtBreakpoint = true;
+
             var callFrames = [];
             var frames = this._debugger.getFrames(0);
             for (var i = 0; i < frames.length; i++) {

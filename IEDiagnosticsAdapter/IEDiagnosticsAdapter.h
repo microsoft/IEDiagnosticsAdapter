@@ -71,7 +71,7 @@ private:
     HRESULT PopulateIEInstances();
     HRESULT ConnectToInstance(_In_ IEInstance& instance);
     HRESULT SendMessageToInstance(_In_ HWND& instanceHwnd, _In_ CString& message);
-    HRESULT InjectScript(_In_ const LPCWSTR id, _In_ const DWORD resourceId, _In_ HWND hwnd);
+    HRESULT InjectScript(_In_ const LPCWSTR id, _In_ const LPCWSTR scriptName, _In_ const DWORD resourceId, _In_ HWND hwnd);
 
     // WebSocket Callbacks
     void OnHttp(websocketpp::connection_hdl hdl);

@@ -23,9 +23,8 @@
   </PropertyGroup>
   <ItemGroup>
     <TypeScriptCompile Include="Browser.ts" />
-    <TypeScriptCompile Include="debugger.ts" />
+    <TypeScriptCompile Include="Debugger.ts" />
     <TypeScriptCompile Include="Interfaces.d.ts" />
-    <TypeScriptCompile Include="MessageRelay.ts" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">12.0</VisualStudioVersion>
