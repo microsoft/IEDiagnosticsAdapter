@@ -194,7 +194,8 @@ HRESULT WebSocketClientHost::SendMessageToScriptHost(_In_ unique_ptr<MessageInfo
         // Store this script ready for executing when the engine starts
         m_engineMessageQueue[id].push_back(std::move(spInfo));
 
-        if (shouldCreateEngine)
+        // Make sure only to create engine on the first injection
+        if (shouldCreateEngine && m_engineMessageQueue[id].size() == 1)
         {
             // Create the new host for this id
             CComBSTR idBstr(id);

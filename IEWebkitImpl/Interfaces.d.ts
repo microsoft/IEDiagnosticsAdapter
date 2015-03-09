@@ -38,4 +38,23 @@ declare module F12.Proxy {
         type: string;
         value: any;
     }
+
+    interface IBrowser {
+        addEventListener(eventType: string, callback: Function): void;
+        removeEventListener(eventType: string, callback: Function): void;
+        /*get*/ browserMode: string;
+        /*get*/ defaultDocumentMode: number;
+        /*get*/ document: HTMLDocument;
+        /*get*/ documentMode: number;
+        elementSelectionEventsEnabled: boolean;
+        forceEdgeModeDocumentFamily: boolean;
+        workerStartupScript: string;
+
+        createSafeFunction(targetOM: any, func: Function): Function;
+        executeScript(code: string, targetFrame?: any): any;
+        highlightElement(elementOrNull: Element, marginColor: string, borderColor: string, paddingColor: string, contentColor: string): void;
+        refresh(): void;
+        takeVisualSnapshot(width?: number, height?: number, keepAspectRatio?: boolean): Blob;
+        enumerateStyleSheets(): void;
+    }
 } 
