@@ -12,28 +12,28 @@ module F12.Proxy {
     declare var browser: IBrowser;
 
     class BrowserHandler {
-        externalObj: any;
+        windowExternal: any; //todo: Make an appropriate TS interface for external
         constructor() {
-            this.externalObj = external; //todo: Make a better interface for external
-            this.externalObj.addEventListener("message", (e: any) => this.messageHandler(e));
+            this.windowExternal = (<any>external); 
+            this.windowExternal.addEventListener("message", (e: any) => this.messageHandler(e));
         }
 
-        private PostResponse(id: number, value: any) {
+        private PostResponse(id: number, value: IWebKitResult) {
             // Send the response back over the websocket
             var response: IWebKitResponse = Common.CreateResponse(id, value);
-            this.externalObj.sendMessage("postMessage", JSON.stringify(response));
+            this.windowExternal.sendMessage("postMessage", JSON.stringify(response));
         }
 
-        private PostNotification(method: any, params: any) {
+        private PostNotification(method: string, params: any) {
             var notification = {
                 method: method,
                 params: params
             }
 
-        this.externalObj.sendMessage("postMessage", JSON.stringify(notification));
+            this.windowExternal.sendMessage("postMessage", JSON.stringify(notification)); //todo: should this be postMessage?
         }
 
-        private ProcessRuntime(method: any, request: any) {
+        private ProcessRuntime(method: string, request: IWebKitRequest) {
             var processedResult;
 
             switch (method) {
@@ -105,7 +105,7 @@ module F12.Proxy {
             this.PostResponse(request.id, processedResult);
         }
 
-        private ProcessPage(method: any, request: any) {
+        private ProcessPage(method: string, request: IWebKitRequest) {
             var processedResult;
 
             switch (method) {
