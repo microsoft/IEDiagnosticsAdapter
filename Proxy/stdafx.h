@@ -30,5 +30,5 @@
 using namespace ATL;
 using namespace std;
 
-#include "Helpers.h"
+#include "Helpers.h";
 #include "Messages.h"
