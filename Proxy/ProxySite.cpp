@@ -38,8 +38,24 @@ STDMETHODIMP ProxySite::SetSite(IUnknown* pUnkSite)
 
     if (pUnkSite != nullptr)
     {
+        // Get the debug application from the site
+        CComPtr<IRemoteDebugApplication> spRemoteDebugApplication;
+        hr = this->EnableSourceRundown(spRemoteDebugApplication);
+        FAIL_IF_NOT_S_OK(hr);
+
+        CComQIPtr<IDebugApplication110> spDebugApplication110(spRemoteDebugApplication);
+        ATLENSURE_RETURN_HR(spDebugApplication110 != nullptr, E_NOINTERFACE);
+
+        // Create the message queue used for processing the browser ui thread while at a breakpoint
+        CComObject<BrowserMessageQueue>* pMessageQueue;
+        hr = CComObject<BrowserMessageQueue>::CreateInstance(&pMessageQueue);
+        ATLENSURE_RETURN_HR(hr == S_OK && pMessageQueue != nullptr, E_UNEXPECTED);
+        
+        m_spMessageQueue = pMessageQueue;
+        pMessageQueue->Initialize(spDebugApplication110, this, this->m_hWnd, true);
+
         // Create the websocket thread
-        hr = this->CreateThread(m_hWnd, nullptr, &WebSocketThreadProc, m_websocketThread.m_id, m_websocketThread.m_handle, m_websocketThread.m_hwnd);
+        hr = this->CreateThread(m_hWnd, m_spMessageQueue->GetUnknown(), m_spMessageQueue, &WebSocketThreadProc, m_websocketThread.m_id, m_websocketThread.m_handle, m_websocketThread.m_hwnd);
         FAIL_IF_NOT_S_OK(hr);
     }
     else
@@ -64,57 +80,54 @@ STDMETHODIMP ProxySite::GetWindow(__RPC__deref_out_opt HWND* pHwnd)
     return E_NOT_VALID_STATE;
 }
 
+// IDebugThreadCall
+STDMETHODIMP ProxySite::ThreadCallHandler(_In_ DWORD_PTR dwParam1, _In_ DWORD_PTR dwParam2, _In_ DWORD_PTR dwParam3)
+{
+    if (m_spMessageQueue == nullptr) { return S_OK; }
+
+    if (dwParam1 == WM_MESSAGE_IN_QUEUE)
+    {
+        vector<shared_ptr<MessagePacket>> packets;
+        m_spMessageQueue->PopAll(packets);
+
+        std::for_each(packets.begin(), packets.end(), [this](const shared_ptr<MessagePacket>& spPacket)
+        {
+            // Debugger (or any non ui thread) messages should not be processed by the UI thread
+            ATLASSERT(::VarBstrCmp(spPacket->m_engineId, CComBSTR(L"debugger"), LOCALE_NEUTRAL, NORM_IGNORECASE) != VARCMP_EQ);
+
+            if (m_browserEngines.find(spPacket->m_engineId) == m_browserEngines.end())
+            {
+                HRESULT hr = this->CreateEngine(spPacket->m_engineId);
+                ATLASSERT(hr == S_OK); hr;
+            }
+
+            // Process the message in the browser engine
+            m_browserEngines[spPacket->m_engineId]->ProcessMessage(spPacket);
+        });
+    }
+    else if (dwParam1 == WM_BREAK_OCCURRED)
+    {
+        // TODO: Notify the browser ui thread engines of the break 
+    }
+
+    return S_OK;
+}
+
 // Window Messages
+LRESULT ProxySite::OnMessageInQueue(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/)
+{
+    this->ThreadCallHandler(WM_MESSAGE_IN_QUEUE, NULL, NULL);
+    return 0;
+}
+
 LRESULT ProxySite::OnCreateEngine(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/)
 {
+    // Take ownership of the string
     CComBSTR id;
     id.Attach(reinterpret_cast<BSTR>(wParam));
 
-    HWND resultHwnd = NULL;
-
-    if (id.Length() == 8 && wcsncmp(id, L"debugger", 8) == 0)
-    {
-        ATLENSURE_RETURN_VAL(!m_debuggerThread.m_hwnd, -1);
-
-        // Enable debugging
-        CComPtr<IRemoteDebugApplication> spRemoteDebugApplication;
-        HRESULT hr = this->EnableDynamicDebugging(spRemoteDebugApplication);
-        FAIL_IF_NOT_S_OK(hr);
-
-        // Create the debugger thread
-        hr = this->CreateThread(m_hWnd, spRemoteDebugApplication, &DebuggerThreadProc, m_debuggerThread.m_id, m_debuggerThread.m_handle, m_debuggerThread.m_hwnd);
-        FAIL_IF_NOT_S_OK(hr);
-
-        resultHwnd = m_debuggerThread.m_hwnd;
-    }
-    else
-    {
-        // Create a new engine on this thread
-        ATLENSURE_RETURN_VAL(m_browserEngines.find(id) == m_browserEngines.end(), -1);
-
-        CComObject<BrowserHost>* pBrowserHost;
-        HRESULT hr = CComObject<BrowserHost>::CreateInstance(&pBrowserHost);
-        FAIL_IF_NOT_S_OK(hr);
-
-        CComPtr<BrowserHost> spBrowserHost(pBrowserHost);
-        hr = spBrowserHost->Initialize(m_hWnd, m_spUnkSite);
-        FAIL_IF_NOT_S_OK(hr);
-
-        m_browserEngines[id] = spBrowserHost;
-
-        resultHwnd = spBrowserHost->m_hWnd;
-    }
-
-    ::PostMessage(resultHwnd, WM_SET_MESSAGE_HWND, 0, reinterpret_cast<LPARAM>(m_websocketThread.m_hwnd));
-
-    // Tell the websocket controller about this new engine
-    BSTR param = id.Detach();
-    BOOL succeeded = ::PostMessage(m_websocketThread.m_hwnd, WM_SET_MESSAGE_HWND, reinterpret_cast<WPARAM>(param), reinterpret_cast<LPARAM>(resultHwnd));
-    if (!succeeded)
-    {
-        id.Attach(param);
-        ATLASSERT(false);
-    }
+    HRESULT hr = this->CreateEngine(id);
+    ATLASSERT(hr == S_OK); hr;
 
     return 0;
 }
@@ -139,7 +152,7 @@ LRESULT ProxySite::OnControllerCommand(UINT nMsg, WPARAM wParam, LPARAM lParam, 
 }
 
 // Helper functions
-HRESULT ProxySite::CreateThread(_In_ HWND mainHwnd, _In_opt_ IUnknown* pUnknown, _In_ LPTHREAD_START_ROUTINE threadProc, _Out_ DWORD& threadId, _Out_ CHandle& threadHandle, _Out_ HWND& threadMessageHwnd)
+HRESULT ProxySite::CreateThread(_In_ HWND mainHwnd, _In_opt_ IUnknown* pUnknown, _In_opt_ BrowserMessageQueue* pMessageQueue, _In_ LPTHREAD_START_ROUTINE threadProc, _Out_ DWORD& threadId, _Out_ CHandle& threadHandle, _Out_ HWND& threadMessageHwnd)
 {
     HRESULT hr = S_OK;
 
@@ -148,7 +161,7 @@ HRESULT ProxySite::CreateThread(_In_ HWND mainHwnd, _In_opt_ IUnknown* pUnknown,
 
     shared_ptr<HRESULT> hrResult(new HRESULT(S_OK));
     shared_ptr<HWND> hwndThread(new HWND(0));
-    unique_ptr<ThreadParams> spParams(new ThreadParams(threadInitializedEvent, hrResult, hwndThread, mainHwnd, pUnknown));
+    unique_ptr<ThreadParams> spParams(new ThreadParams(threadInitializedEvent, hrResult, hwndThread, mainHwnd, pUnknown, pMessageQueue));
 
     // Create the thread
     ThreadParams* pParams = spParams.release();
@@ -193,13 +206,23 @@ HRESULT ProxySite::CreateThread(_In_ HWND mainHwnd, _In_opt_ IUnknown* pUnknown,
     return hr;
 }
 
+HRESULT ProxySite::EnableSourceRundown(_Out_ CComPtr<IRemoteDebugApplication>& spRemoteDebugApplication)
+{
+    return this->LoadPDM(IDM_DEBUGGERDYNAMICATTACHSOURCERUNDOWN, spRemoteDebugApplication);
+}
+
 HRESULT ProxySite::EnableDynamicDebugging(_Out_ CComPtr<IRemoteDebugApplication>& spRemoteDebugApplication)
+{
+    return this->LoadPDM(IDM_DEBUGGERDYNAMICATTACH, spRemoteDebugApplication);
+}
+
+HRESULT ProxySite::LoadPDM(_In_ DWORD attachType, _Out_ CComPtr<IRemoteDebugApplication>& spRemoteDebugApplication)
 {
     HRESULT hr = S_OK;
 
     CComPtr<IDispatch> spDispatch;
     CComVariant spResult;
-    hr = IOleCommandTargetExec(IDM_DEBUGGERDYNAMICATTACH, spDispatch, spResult);
+    hr = IOleCommandTargetExec(attachType, spDispatch, spResult);
     if (hr == S_OK)
     {
         CComQIPtr<IServiceProvider> spServiceProvider(spDispatch);
@@ -236,6 +259,61 @@ HRESULT ProxySite::IOleCommandTargetExec(_In_ DWORD cmdId, _Inout_ CComPtr<IDisp
     return hr;
 }
 
+HRESULT ProxySite::CreateEngine(_In_ CComBSTR& id)
+{
+    HWND resultHwnd = NULL;
+
+    if (id.Length() == 8 && wcsncmp(id, L"debugger", 8) == 0)
+    {
+        ATLENSURE_RETURN_VAL(!m_debuggerThread.m_hwnd, -1);
+
+        // Enable debugging
+        CComPtr<IRemoteDebugApplication> spRemoteDebugApplication;
+        HRESULT hr = this->EnableDynamicDebugging(spRemoteDebugApplication);
+        FAIL_IF_NOT_S_OK(hr);
+
+        // Create the debugger thread
+        hr = this->CreateThread(m_hWnd, spRemoteDebugApplication, nullptr, &DebuggerThreadProc, m_debuggerThread.m_id, m_debuggerThread.m_handle, m_debuggerThread.m_hwnd);
+        FAIL_IF_NOT_S_OK(hr);
+
+        resultHwnd = m_debuggerThread.m_hwnd;
+
+        // Tell the new engine about this websocket thread
+        ::PostMessage(resultHwnd, WM_SET_MESSAGE_HWND, 0, reinterpret_cast<LPARAM>(m_websocketThread.m_hwnd));
+
+        // Tell the websocket controller about this new engine
+        BSTR param = id.Detach();
+        BOOL succeeded = ::PostMessage(m_websocketThread.m_hwnd, WM_SET_MESSAGE_HWND, reinterpret_cast<WPARAM>(param), reinterpret_cast<LPARAM>(resultHwnd));
+        if (!succeeded)
+        {
+            id.Attach(param);
+            ATLASSERT(false);
+        }
+    }
+    else
+    {
+        // Create a new engine on this thread
+        ATLENSURE_RETURN_VAL(m_browserEngines.find(id) == m_browserEngines.end(), -1);
+
+        CComObject<BrowserHost>* pBrowserHost;
+        HRESULT hr = CComObject<BrowserHost>::CreateInstance(&pBrowserHost);
+        FAIL_IF_NOT_S_OK(hr);
+
+        CComPtr<BrowserHost> spBrowserHost(pBrowserHost);
+        hr = spBrowserHost->Initialize(m_hWnd, m_spUnkSite);
+        FAIL_IF_NOT_S_OK(hr);
+
+        m_browserEngines[id] = spBrowserHost;
+
+        resultHwnd = spBrowserHost->m_hWnd;
+
+        // Tell the browser engine about the websocket thread
+        spBrowserHost->SetWebSocketHwnd(m_websocketThread.m_hwnd);
+    }
+
+    return 0;
+}
+
 // Thread procs
 static DWORD WINAPI WebSocketThreadProc(_In_ LPVOID pThreadParam)
 {
@@ -244,6 +322,7 @@ static DWORD WINAPI WebSocketThreadProc(_In_ LPVOID pThreadParam)
     shared_ptr<HRESULT> spResult = spParams->m_spResult;
     shared_ptr<HWND> spHwnd = spParams->m_spHwnd;
     HWND mainHwnd = spParams->m_mainHwnd;
+    CComObjPtr<BrowserMessageQueue> spMessageQueue(spParams->m_spMessageQueue);
     spParams.reset();
 
     // Initialize OLE COM and uninitialize when it goes out of scope
@@ -258,7 +337,7 @@ static DWORD WINAPI WebSocketThreadProc(_In_ LPVOID pThreadParam)
     // Scope for the thread window
     {
         shared_ptr<WebSocketClientHost> spThreadWindow(new WebSocketClientHost());
-        spThreadWindow->Initialize(mainHwnd);
+        spThreadWindow->Initialize(mainHwnd, spMessageQueue);
 
         // Done initializing
         (*spHwnd) = spThreadWindow->m_hWnd;

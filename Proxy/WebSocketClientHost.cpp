@@ -18,9 +18,10 @@ WebSocketClientHost::WebSocketClientHost() :
     ::ChangeWindowMessageFilterEx(m_hWnd, Get_WM_SET_CONNECTION_HWND(), MSGFLT_ALLOW, 0);
 }
 
-HRESULT WebSocketClientHost::Initialize(_In_ HWND mainHwnd)
+HRESULT WebSocketClientHost::Initialize(_In_ HWND mainHwnd, _In_ BrowserMessageQueue* pMessageQueue)
 {
     m_uiThreadHwnd = mainHwnd;
+    m_spBrowserMessageQueue = pMessageQueue;
 
     HRESULT hr = ScriptEngineHost::Initialize(m_hWnd);
     FAIL_IF_NOT_S_OK(hr);
@@ -45,24 +46,17 @@ LRESULT WebSocketClientHost::OnSetMessageHwnd(UINT nMsg, WPARAM wParam, LPARAM l
     HWND hwnd = reinterpret_cast<HWND>(lParam);
 
     // Store the engine hwnd
-    CString id(idBstr);
-    id.MakeLower();
-    m_engineHosts[id] = hwnd;
+    m_threadEngineHosts[idBstr] = hwnd;
 
     // Fire any queued messages
-    if (m_engineMessageQueue.find(id) != m_engineMessageQueue.end())
+    if (m_threadEngineMessageQueue.find(idBstr) != m_threadEngineMessageQueue.end())
     {
-        for (auto& i : m_engineMessageQueue[id])
+        for (auto& i : m_threadEngineMessageQueue[idBstr])
         {
-            MessageInfo* pInfoParam = i.release();
-            BOOL succeeded = ::PostMessage(m_engineHosts[id], WM_MESSAGE_RECEIVE, reinterpret_cast<WPARAM>(pInfoParam), 0);
-            if (!succeeded)
-            {
-                i.reset(pInfoParam);
-            }
+            this->SendMessageToThreadEngine(std::move(i), /*shouldCreateEngine=*/ false);
         }
 
-        m_engineMessageQueue[id].clear();
+        m_threadEngineMessageQueue[idBstr].clear();
     }
 
     return 0;
@@ -84,10 +78,11 @@ LRESULT WebSocketClientHost::OnMessageSend(UINT nMsg, WPARAM wParam, LPARAM lPar
 LRESULT WebSocketClientHost::OnMessageReceive(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/)
 {
     // Take ownership of the data
-    unique_ptr<MessageInfo> spInfo(reinterpret_cast<MessageInfo*>(wParam));
+    unique_ptr<MessagePacket> spPacket(reinterpret_cast<MessagePacket*>(wParam));
 
     // Forward the message to the correct thread
-    this->SendMessageToScriptHost(std::move(spInfo), /*shouldCreateEngine*/false);
+    shared_ptr<MessagePacket> spQueuedPacket(std::move(spPacket));
+    m_spBrowserMessageQueue->Push(spQueuedPacket);
 
     return 0;
 }
@@ -158,60 +153,62 @@ LRESULT WebSocketClientHost::OnMessageFromWebKit(UINT nMsg, WPARAM wParam, LPARA
     }
 
     // Send the message to the correct thread
-    unique_ptr<MessageInfo> spInfo(new MessageInfo());
-    spInfo->m_engineId = id;
-    spInfo->m_scriptName = scriptName;
-    spInfo->m_messageType = (isInjectionMessage ? MessageType::Inject : MessageType::Execute);
-    spInfo->m_message = message;
+    unique_ptr<MessagePacket> spPacket(new MessagePacket());
+    spPacket->m_engineId = id;
+    spPacket->m_scriptName = scriptName;
+    spPacket->m_messageType = (isInjectionMessage ? MessageType::Inject : MessageType::Execute);
+    spPacket->m_message = message;
 
-    HRESULT hr = this->SendMessageToScriptHost(std::move(spInfo), isInjectionMessage);
-    FAIL_IF_NOT_S_OK(hr);
+    this->SendMessageToThreadEngine(std::move(spPacket), isInjectionMessage);
 
     return 0;
 }
 
 // Helper functions
-HRESULT WebSocketClientHost::SendMessageToScriptHost(_In_ unique_ptr<MessageInfo>&& spInfo, _In_ bool shouldCreateEngine)
+HRESULT WebSocketClientHost::SendMessageToThreadEngine(_In_ unique_ptr<MessagePacket>&& spPacket, _In_ bool shouldCreateEngine)
 {
     HRESULT hr = S_OK;
 
-    CString id(spInfo->m_engineId);
+    CComBSTR id(spPacket->m_engineId);
 
-    if (m_engineHosts.find(id) != m_engineHosts.end())
+    if (m_threadEngineHosts.find(id) != m_threadEngineHosts.end())
     {
-        // Send the message to the specified engine thread
-        
-        MessageInfo* pInfoParam = spInfo.release();
-        BOOL succeeded = ::PostMessage(m_engineHosts[id], WM_MESSAGE_RECEIVE, reinterpret_cast<WPARAM>(pInfoParam), 0);
+        // Post the message to the specified engine thread since it won't be blocked at a breakpoint
+        MessagePacket* pPacketParam = spPacket.release();
+        BOOL succeeded = ::PostMessage(m_threadEngineHosts[id], WM_MESSAGE_RECEIVE, reinterpret_cast<WPARAM>(pPacketParam), 0);
         if (!succeeded)
         {
-            spInfo.reset(pInfoParam);
+            spPacket.reset(pPacketParam);
             hr = E_FAIL;
         }
     }
-    else
+    else if (::VarBstrCmp(id, CComBSTR(L"debugger"), LOCALE_NEUTRAL, NORM_IGNORECASE) == VARCMP_EQ)
     {
-        // Store this script ready for executing when the engine starts
-        m_engineMessageQueue[id].push_back(std::move(spInfo));
+        // Store this script ready for executing when the thread engine starts
+        m_threadEngineMessageQueue[id].push_back(std::move(spPacket));
 
         // Make sure only to create engine on the first injection
-        if (shouldCreateEngine && m_engineMessageQueue[id].size() == 1)
+        if (shouldCreateEngine && m_threadEngineMessageQueue[id].size() == 1)
         {
             // Create the new host for this id
-            CComBSTR idBstr(id);
-            BSTR param = idBstr.Detach();
+            BSTR param = id.Detach();
             BOOL succeeded = ::PostMessage(m_uiThreadHwnd, WM_CREATE_ENGINE, reinterpret_cast<WPARAM>(param), 0);
             if (!succeeded)
             {
-                idBstr.Attach(param);
+                id.Attach(param);
                 hr = E_FAIL;
             }
         }
     }
+    else
+    {
+        // Use the browser ui message queue in case the thread is stopped at a breakpoint
+        shared_ptr<MessagePacket> spSharedPacket(std::move(spPacket));
+        this->m_spBrowserMessageQueue->Push(spSharedPacket);
+    }
 
     return hr;
 }
-
 HRESULT WebSocketClientHost::SendMessageToWebKit(_In_ CString& message)
 {
     const size_t ucbParamsSize = sizeof(CopyDataPayload_StringMessage_Data);

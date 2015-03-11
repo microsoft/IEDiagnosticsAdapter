@@ -47,10 +47,42 @@ HRESULT BrowserHost::Initialize(_In_ HWND proxyHwnd, _In_ IUnknown* pWebControl)
     return hr;
 }
 
+HRESULT BrowserHost::SetWebSocketHwnd(_In_ HWND websocketHwnd)
+{
+    // Store the HWND we will use for posting back to the proxy server
+    m_websocketHwnd = websocketHwnd;
+
+    return S_OK;
+}
+
+HRESULT BrowserHost::ProcessMessage(_In_ shared_ptr<MessagePacket> spPacket)
+{
+    HRESULT hr = S_OK;
+
+    // Check if this is a script injection message
+    if (spPacket->m_messageType == MessageType::Inject)
+    {
+        // Execute the script so it gets injected into our Chakra runtime
+        hr = m_spDiagnosticsEngine->EvaluateScript(spPacket->m_message, spPacket->m_scriptName);
+        FAIL_IF_NOT_S_OK(hr);
+
+        // Done
+        return 0;
+    }
+
+    LPCWSTR propertyNames[] = { L"id", L"data" };
+    LPCWSTR propertyValues[] = { L"onmessage", spPacket->m_message };
+    hr = m_spDiagnosticsEngine->FireScriptMessageEvent(propertyNames, propertyValues, _countof(propertyNames));
+    FAIL_IF_NOT_S_OK(hr);
+
+    return hr;
+}
+
 // IDiagnosticsScriptEngineSite
 STDMETHODIMP BrowserHost::OnMessage(_In_reads_(ulDataCount)  LPCWSTR* pszData, ULONG ulDataCount)
 {
     const wchar_t postMessageId[] = L"postMessage";
+    const wchar_t alertMessageId[] = L"alert";
 
     if (::CompareStringOrdinal(pszData[0], -1, postMessageId, _countof(postMessageId) - 1, false) == CSTR_EQUAL)
     {
@@ -64,6 +96,13 @@ STDMETHODIMP BrowserHost::OnMessage(_In_reads_(ulDataCount)  LPCWSTR* pszData, U
             messageBstr.Attach(param);
         }
     }
+    else if (::CompareStringOrdinal(pszData[0], -1, alertMessageId, _countof(alertMessageId) - 1, false) == CSTR_EQUAL)
+    {
+        ATLENSURE_RETURN_HR(ulDataCount == 2, E_INVALIDARG);
+
+        CComBSTR messageBstr(pszData[1]);
+        ::MessageBox(NULL, messageBstr, L"Message from browser", 0);
+    }
 
     return S_OK;
 }
@@ -71,41 +110,6 @@ STDMETHODIMP BrowserHost::OnMessage(_In_reads_(ulDataCount)  LPCWSTR* pszData, U
 STDMETHODIMP BrowserHost::OnScriptError(_In_ IActiveScriptError* pScriptError)
 {
     return S_OK;
-}
-
-// Window Messages
-LRESULT BrowserHost::OnSetMessageHwnd(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/)
-{
-    // Store the HWND we will use for posting back to the proxy server
-    m_websocketHwnd = reinterpret_cast<HWND>(lParam);
-
-    return 0;
-}
-
-LRESULT BrowserHost::OnMessageReceived(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/)
-{
-    // Take ownership of the data
-    unique_ptr<MessageInfo> spInfo(reinterpret_cast<MessageInfo*>(wParam));
-
-    HRESULT hr = S_OK;
-
-    // Check if this is a script injection message
-    if (spInfo->m_messageType == MessageType::Inject)
-    {
-        // Execute the script so it gets injected into our Chakra runtime
-        hr = m_spDiagnosticsEngine->EvaluateScript(spInfo->m_message, spInfo->m_scriptName);
-        FAIL_IF_NOT_S_OK(hr);
-
-        // Done
-        return 0;
-    }
-
-    LPCWSTR propertyNames[] = { L"id", L"data" };
-    LPCWSTR propertyValues[] = { L"onmessage", spInfo->m_message };
-    hr = m_spDiagnosticsEngine->FireScriptMessageEvent(propertyNames, propertyValues, _countof(propertyNames));
-    FAIL_IF_NOT_S_OK(hr);
-
-    return 0;
 }
 
 // DWebBrowserEvents2
