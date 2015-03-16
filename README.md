@@ -3,12 +3,12 @@ IE Diagnostics Adapter is a proxy that enables tools to debug and diagnose IE us
 
 ### Current Release
 
-https://github.com/Microsoft/IEDiagnosticsAdapter/releases/tag/v0.1-pre-alpha
+https://github.com/Microsoft/IEDiagnosticsAdapter/releases/tag/v0.1.1-pre-alpha
 
 ## Installing
 Simply download and unpack a release on to your hard drive.
 
-1. Download the [current release](https://github.com/Microsoft/IEDiagnosticsAdapter/releases/download/v0.1-pre-alpha/IEDiagnosticsAdapter-v0.1-pre-alpha.zip)
+1. Download the [current release](https://github.com/Microsoft/IEDiagnosticsAdapter/releases/download/v0.1.1-pre-alpha/IEDiagnosticsAdapter-v0.1.1-pre-alpha.zip)
 2. Copy into a folder on disk where you wish to run the file from e.g. `%HOMEPATH%\Desktop`
 3. Extract the files
 4. Delete the zip file
