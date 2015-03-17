@@ -299,7 +299,7 @@ void ScriptEngineHost::FireEvent(_In_ const wchar_t* eventName,
 
             // Call the actual script function
             JsValueRef returnValue;
-            JsErrorCode jec = ::JsCallFunction(listener.second.m_value, &finalArgs[0], finalArgs.size(), &returnValue);
+            JsErrorCode jec = ::JsCallFunction(listener.second.m_value, &finalArgs[0], static_cast<unsigned short>(finalArgs.size()), &returnValue);
             if (jec != JsNoError)
             {
                 JsValueRef exception;
