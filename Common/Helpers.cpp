@@ -186,7 +186,7 @@ namespace Helpers
 
     HRESULT GetDocumentFromHwnd(_In_ const HWND browserHwnd, _Out_ CComPtr<IHTMLDocument2>& spDocument)
     {
-        DWORD messageResult;
+        DWORD_PTR messageResult = 0;
         LRESULT sendMessageResult = ::SendMessageTimeoutW(browserHwnd, Helpers::GetHtmlDocumentMessage(), 0L, 0L, SMTO_ABORTIFHUNG, 2000, &messageResult);
 
         if (sendMessageResult != 0 && messageResult != 0)
