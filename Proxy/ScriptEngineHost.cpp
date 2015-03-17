@@ -108,7 +108,7 @@ LRESULT ScriptEngineHost::OnSetMessageHwnd(UINT nMsg, WPARAM wParam, LPARAM lPar
 LRESULT ScriptEngineHost::OnMessageReceived(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/)
 {
     // Take ownership of the data
-    unique_ptr<MessageInfo> spInfo(reinterpret_cast<MessageInfo*>(wParam));
+    unique_ptr<MessagePacket> spPacket(reinterpret_cast<MessagePacket*>(wParam));
 
     JsErrorCode jec = JsNoError;
 
@@ -117,10 +117,10 @@ LRESULT ScriptEngineHost::OnMessageReceived(UINT nMsg, WPARAM wParam, LPARAM lPa
         JsContextPtr context(m_scriptContext);
 
         // Check if this is a script injection message
-        if (spInfo->m_messageType == MessageType::Inject)
+        if (spPacket->m_messageType == MessageType::Inject)
         {
             // Execute the script so it gets injected into our Chakra runtime
-            this->ExecuteScript(spInfo->m_scriptName, spInfo->m_message);
+            this->ExecuteScript(spPacket->m_scriptName, spPacket->m_message);
 
             // Done
             return 0;
@@ -129,7 +129,7 @@ LRESULT ScriptEngineHost::OnMessageReceived(UINT nMsg, WPARAM wParam, LPARAM lPa
         // Otherwise we fire the 'onmessage' event to any functions that are listening
         const WORD argCount = 1;
         JsValueRef args[argCount];
-        jec = ::JsPointerToString(spInfo->m_message.m_str, spInfo->m_message.Length(), &args[0]);
+        jec = ::JsPointerToString(spPacket->m_message.m_str, spPacket->m_message.Length(), &args[0]);
         //ATLASSERT(jec == JsNoError);
 
         if (jec != JsNoError)

@@ -18,6 +18,10 @@ module F12.Proxy {
             this.windowExternal.addEventListener("message", (e: any) => this.messageHandler(e));
         }
 
+        private alert(message: string): void {
+            this.windowExternal.sendMessage("alert", message);
+        }
+
         private PostResponse(id: number, value: IWebKitResult) {
             // Send the response back over the websocket
             var response: IWebKitResponse = Common.CreateResponse(id, value);

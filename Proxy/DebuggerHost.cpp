@@ -104,16 +104,16 @@ JsValueRef DebuggerHost::postMessageToEngine(JsValueRef callee, bool isConstruct
         size_t dataLength;
         jec = ::JsStringToPointer(arguments[3], &data, &dataLength);
 
-        unique_ptr<MessageInfo> spInfo(new MessageInfo());
-        spInfo->m_engineId = id;
-        spInfo->m_messageType = (isAtBreakpoint ? MessageType::ExecuteAtBreak : MessageType::Execute);
-        spInfo->m_message = data;
+        unique_ptr<MessagePacket> spPacket(new MessagePacket());
+        spPacket->m_engineId = id;
+        spPacket->m_messageType = (isAtBreakpoint ? MessageType::ExecuteAtBreak : MessageType::Execute);
+        spPacket->m_message = data;
 
-        MessageInfo* pInfoParam = spInfo.release();
-        BOOL succeeded = ::PostMessage(m_websocketHwnd, WM_MESSAGE_RECEIVE, reinterpret_cast<WPARAM>(pInfoParam), NULL);
+        MessagePacket* pPacketParam = spPacket.release();
+        BOOL succeeded = ::PostMessage(m_websocketHwnd, WM_MESSAGE_RECEIVE, reinterpret_cast<WPARAM>(pPacketParam), NULL);
         if (!succeeded)
         {
-            spInfo.reset(pInfoParam);
+            spPacket.reset(pPacketParam);
         }
     }
 

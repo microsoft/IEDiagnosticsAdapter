@@ -271,8 +271,8 @@ module F12.Proxy {
                             this.PostResponse(request.id, r);
                             break;
                         }
-                        this.PostResponse(request.id, {});
-                        break;
+
+                        return host.postMessageToEngine("browser", this._isAtBreakpoint, JSON.stringify(request));
                 }
             }
         }

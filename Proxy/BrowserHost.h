@@ -26,8 +26,6 @@ public:
     END_COM_MAP()
 
     BEGIN_MSG_MAP(BrowserHost)
-        MESSAGE_HANDLER(WM_SET_MESSAGE_HWND, OnSetMessageHwnd)
-        MESSAGE_HANDLER(WM_MESSAGE_RECEIVE, OnMessageReceived)
     END_MSG_MAP()
 
     BEGIN_SINK_MAP(BrowserHost)
@@ -38,14 +36,12 @@ public:
     STDMETHOD(OnMessage)(_In_reads_(ulDataCount)  LPCWSTR* pszData, ULONG ulDataCount);
     STDMETHOD(OnScriptError)(_In_ IActiveScriptError* pScriptError);
 
-    // Window Messages
-    LRESULT OnSetMessageHwnd(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/);
-    LRESULT OnMessageReceived(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/);
-
     // DWebBrowserEvents2
     STDMETHOD_(void, DWebBrowserEvents2_NavigateComplete2)(LPDISPATCH pDisp, VARIANT * URL);
 
     HRESULT Initialize(_In_ HWND proxyHwnd, _In_ IUnknown* pWebControl);
+    HRESULT SetWebSocketHwnd(_In_ HWND websocketHwnd);
+    HRESULT ProcessMessage(_In_ shared_ptr<MessagePacket> spPacket);
 
 private:
     HRESULT OnNavigateCompletePrivate(_In_ CComPtr<IUnknown>& spUnknown, _In_ CString& url);

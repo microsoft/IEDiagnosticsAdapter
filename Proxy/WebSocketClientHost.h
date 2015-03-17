@@ -6,6 +6,7 @@
 
 #include "Proxy_h.h"
 #include "ScriptEngineHost.h"
+#include "BrowserMessageQueue.h"
 
 class WebSocketClientHost :
     public ScriptEngineHost
@@ -31,18 +32,18 @@ public:
     LRESULT OnCopyData(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/);
     LRESULT OnMessageFromWebKit(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/);
 
-    HRESULT Initialize(_In_ HWND mainHwnd);
+    HRESULT Initialize(_In_ HWND mainHwnd, _In_ BrowserMessageQueue* pMessageQueue);
 
 private:
     // Helper functions
-    HRESULT SendMessageToScriptHost(_In_ unique_ptr<MessageInfo>&& spInfo, _In_ bool shouldCreateEngine);
+    HRESULT SendMessageToThreadEngine(_In_ unique_ptr<MessagePacket>&& spPacket, _In_ bool shouldCreateEngine);
     HRESULT SendMessageToWebKit(_In_ CString& message);
 
 private:
     HWND m_uiThreadHwnd;
     HWND m_serverHwnd;
-
-    map<CString, HWND> m_engineHosts;
-    map<CString, vector<unique_ptr<MessageInfo>>> m_engineMessageQueue;
+    CComObjPtr<BrowserMessageQueue> m_spBrowserMessageQueue;
+    map<CComBSTR, HWND> m_threadEngineHosts;
+    map<CComBSTR, vector<unique_ptr<MessagePacket>>> m_threadEngineMessageQueue;
 };
 

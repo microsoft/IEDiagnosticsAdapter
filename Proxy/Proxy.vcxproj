@@ -198,6 +198,7 @@
     <ClInclude Include="DebuggerHost.h" />
     <ClInclude Include="dllmain.h" />
     <ClInclude Include="JsWrappers.h" />
+    <ClInclude Include="BrowserMessageQueue.h" />
     <ClInclude Include="ProxySite.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="ScriptEngineHost.h" />
@@ -214,6 +215,7 @@
     <ClCompile Include="BrowserHost.cpp" />
     <ClCompile Include="DebuggerHost.cpp" />
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="BrowserMessageQueue.cpp" />
     <ClCompile Include="ProxySite.cpp" />
     <ClCompile Include="ScriptEngineHost.cpp" />
     <ClCompile Include="stdafx.cpp">
