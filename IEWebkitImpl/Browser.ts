@@ -10,10 +10,13 @@ module F12.Proxy {
     declare var request: any; //todo: create some interface for request
 
     declare var browser: IBrowser;
-
     class BrowserHandler {
         windowExternal: any; //todo: Make an appropriate TS interface for external
+
         constructor() {
+            this._mapUidToNode = new Map<number, Node>();
+            this._mapNodeToUid = new WeakMap<Node, number>();
+            this._nextAvailableUid = 44; // 43 is reserved for root to copy chrome, maybe change this to 2 later
             this.windowExternal = (<any>external); 
             this.windowExternal.addEventListener("message", (e: any) => this.messageHandler(e));
         }
@@ -25,6 +28,7 @@ module F12.Proxy {
         private PostResponse(id: number, value: IWebKitResult) {
             // Send the response back over the websocket
             var response: IWebKitResponse = Common.CreateResponse(id, value);
+            var debughelper = JSON.stringify(response); //todo : remove this
             this.windowExternal.sendMessage("postMessage", JSON.stringify(response));
         }
 
@@ -133,6 +137,146 @@ module F12.Proxy {
 
             this.PostResponse(request.id, processedResult);
         }
+        ///BELOW: DOM STUFF
+        private _mapUidToNode: Map<number, Node>;
+        private _mapNodeToUid: WeakMap<Node, number>;
+        private _nextAvailableUid: number;
+        
+        private nodeToINode(node: Node): INode {
+
+            var inode: INode = {
+                nodeId: +this.getOrAssignUid(node),
+                nodeType: node.nodeType,
+                nodeName: node.nodeName || "",
+                localName: browser.document.localName || "",
+                nodeValue: browser.document.nodeValue || "",
+                childNodeCount: node.childNodes.length
+            };
+            inode.attributes = [];
+            if (node.attributes) {
+                for (var i = 0; i < node.attributes.length; i++) {
+                    inode.attributes.push(node.attributes[i].value); //todo: ensure this returns the same array as chrome
+                    inode.attributes.push(node.attributes[i].value);
+                }
+            }
+                
+            return inode;
+        }
+
+        private popKidsRecursive(inode: INode, node: Node, childNum:number, depth: number): INode { //fixme childNum is not needed
+            var newchild: INode = this.nodeToINode(node);
+            if (!inode.children) {
+                inode.children = [];
+            }
+            inode.children.push(newchild);
+            if (depth > 0) {
+                for (var i = 0; i < newchild.childNodeCount; i++) {
+                    this.popKidsRecursive(newchild, node.childNodes[i], i, depth - 1);
+                }
+            }
+            return inode;
+        }
+
+        public getOrAssignUid(node: Node): number {
+            if (!node) {
+                return;
+            }
+
+            if (node === browser.document) {
+                return 1;
+            }
+            var uid: number;
+            //var uid = (<HTMLElement>node).uniqueID;
+            //if (uid) {
+               // if (this.getNode(uid)) { // <-- should ALWAYS succeed.
+              //      return uid;
+             //   }
+                // needs mapping then continue with this id.
+           //}
+
+            if (this._mapNodeToUid.has(node)) {
+                return this._mapNodeToUid.get(node);
+            }
+
+            uid = uid || this._nextAvailableUid++;
+
+            this._mapUidToNode.set(uid, node);
+            this._mapNodeToUid.set(node, uid);
+            return uid;
+        }
+        /*
+        public getNode(uid: string): Node {
+            if (uid === "#root") {
+                return browser.document;
+            }
+
+            var node: Node = this._dom.getElementByUniqueId(uid);
+            if (node) {
+                if (!this.isNodeAccessible(node)) {
+                    // Should never happen.
+                    return null;
+                }
+
+                return node;
+            }
+
+            node = this._mapUidToNode.get(uid);
+            if (!node) {
+                return null;
+            }
+
+            if (!this.isNodeAccessible(node)) {
+                this._mapUidToNode.delete(uid);
+                return null;
+            }
+
+            return node;
+        }*/
+
+        private ProcessDOM(method: string, request: IWebKitRequest) {
+            var processedResult;
+
+            switch (method) {
+                //todo pull out into files/funcions
+                case "getDocument":
+                    //var id:string =.toString();
+                    var x: INode = {
+                        nodeId: 43, //+browser.document.uniqueID, // unary + to convert string to number fixme
+                        nodeType: browser.document.nodeType,
+                        nodeName: browser.document.nodeName,
+                        localName: browser.document.localName || "",
+                        nodeValue: browser.document.nodeValue || "",
+                        documentURL: browser.document.URL,
+                        baseURL: browser.document.URL, // fixme: this line or the above line is probaly not right
+                        xmlVersion: browser.document.xmlVersion,
+                        childNodeCount: browser.document.childNodes.length
+                    };
+
+
+                    for (var i = 0; i < browser.document.childNodes.length; i++){
+                        this.popKidsRecursive(x, browser.document.childNodes[i],i, 2);
+                    }
+
+
+                    //browser.document.
+                    processedResult = {
+                        result: {
+                            root: x
+                        }
+                    };
+
+                    break;
+                case "hideHighlight":
+                    processedResult = {}
+                    break;
+                default:
+                    processedResult = {};
+                    break;
+            }
+
+            this.PostResponse(request.id, processedResult);
+        }
+
 
         private messageHandler(e: any) {
             if (e.id === "onmessage") {
@@ -161,7 +305,9 @@ module F12.Proxy {
                         case "Page":
                             this.ProcessPage(methodParts[1], request);
                             break;
-
+                        case "DOM":
+                            this.ProcessDOM(methodParts[1], request);
+                            break;
                         default:
                             this.PostResponse(request.id, {});
                             break;

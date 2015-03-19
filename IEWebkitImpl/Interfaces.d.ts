@@ -3,6 +3,30 @@
 //
 
 declare module F12.Proxy {
+
+    //// dom
+    export interface INode {
+        attributes?: string[];
+        childNodeCount?: number;
+        children?: INode[];
+        contentDocument?: INode;
+        documentURL?: string;
+        frameId?: string;
+        internalSubnet?: string;
+        localName: string;
+        name?: string;
+        nodeId: number;
+        nodeName: string;
+        nodeType: number;
+        nodeValue: string;
+        publicId?: string;
+        systemId?: string;
+        value?: string;
+        xmlVersion?: string;
+    }
+
+
+    //// other
     interface messageResponce {
         id?: number;
         error?: string;
