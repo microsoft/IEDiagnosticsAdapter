@@ -17,7 +17,7 @@ module F12.Proxy {
             this._mapUidToNode = new Map<number, Node>();
             this._mapNodeToUid = new WeakMap<Node, number>();
             this._nextAvailableUid = 44; // 43 is reserved for root to copy chrome, maybe change this to 2 later
-            this.windowExternal = (<any>external); 
+            this.windowExternal = (<any>external);
             this.windowExternal.addEventListener("message", (e: any) => this.messageHandler(e));
         }
 
@@ -141,7 +141,7 @@ module F12.Proxy {
         private _mapUidToNode: Map<number, Node>;
         private _mapNodeToUid: WeakMap<Node, number>;
         private _nextAvailableUid: number;
-        
+
         private nodeToINode(node: Node): INode {
 
             var inode: INode = {
@@ -159,11 +159,11 @@ module F12.Proxy {
                     inode.attributes.push(node.attributes[i].value);
                 }
             }
-                
+
             return inode;
         }
 
-        private popKidsRecursive(inode: INode, node: Node, childNum:number, depth: number): INode { //fixme childNum is not needed
+        private popKidsRecursive(inode: INode, node: Node, childNum: number, depth: number): INode { //fixme childNum is not needed
             var newchild: INode = this.nodeToINode(node);
             if (!inode.children) {
                 inode.children = [];
@@ -188,11 +188,11 @@ module F12.Proxy {
             var uid: number;
             //var uid = (<HTMLElement>node).uniqueID;
             //if (uid) {
-               // if (this.getNode(uid)) { // <-- should ALWAYS succeed.
-              //      return uid;
-             //   }
-                // needs mapping then continue with this id.
-           //}
+            // if (this.getNode(uid)) { // <-- should ALWAYS succeed.
+            //      return uid;
+            //   }
+            // needs mapping then continue with this id.
+            //}
 
             if (this._mapNodeToUid.has(node)) {
                 return this._mapNodeToUid.get(node);
@@ -233,7 +233,39 @@ module F12.Proxy {
             return node;
         }*/
 
-        private ProcessDOM(method: string, request: IWebKitRequest) {
+        private popKidsRecursiveTry2(iEnode: Node): INode { //fixme childNum is not needed
+            var chromeNode: INode = this.nodeToINode(iEnode);
+            if (!chromeNode.children && chromeNode.childNodeCount > 0) {
+                chromeNode.children = [];
+            }
+            //todo: add an assert iEnode.childNodes.length == chromeNode.childNodeCount 
+            for (var i = 0; i < iEnode.childNodes.length; i++) {
+                chromeNode.children.push(this.popKidsRecursiveTry2(iEnode.childNodes[i]));
+            }
+
+            return chromeNode;
+        }
+
+        private setChildNodes(id: number): void {
+            var iEnode: Node = this._mapUidToNode.get(id);
+            var chromeNode = this.nodeToINode(iEnode);
+            var nodeArray: INode[] = []
+            for (var i = 0; i < iEnode.childNodes.length; i++) {
+                nodeArray.push(this.popKidsRecursiveTry2(iEnode.childNodes[i]));
+            }
+
+
+            // Send the response back over the websocket
+            var response: any = {}; // todo type this. it has no ide so its not an Iwebkitresponce
+            response.method = "DOM.setChildNodes";
+            response.params = {};
+            response.params.parentId = id;
+            response.params.nodes = nodeArray;
+            var debughelper = JSON.stringify(response); //todo : remove this
+            this.windowExternal.sendMessage("postMessage", JSON.stringify(response));
+        }
+
+        private ProcessDOM(method: string, request: IWebKitRequest): void {
             var processedResult;
 
             switch (method) {
@@ -269,6 +301,21 @@ module F12.Proxy {
                 case "hideHighlight":
                     processedResult = {}
                     break;
+
+                case "highlightNode":
+                    processedResult = {}
+                    break;
+
+                case "requestChildNodes":
+                    if (request.params && request.params.nodeId) { //fixme this is probally unneeded
+                        //var nodeId: number = ;
+                        this.setChildNodes(request.params.nodeId);
+                    }
+
+
+                    processedResult = {};
+                    break;
+                 
                 default:
                     processedResult = {};
                     break;
