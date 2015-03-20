@@ -150,10 +150,14 @@ module F12.Proxy {
                 nodeName: node.nodeName || "",
                 localName: browser.document.localName || "",
                 nodeValue: browser.document.nodeValue || "",
-                childNodeCount: node.childNodes.length
+
             };
-            inode.attributes = [];
+
+            if (node.childNodes.length > 0) {
+                inode.childNodeCount = node.childNodes.length;
+            }
             if (node.attributes) {
+                inode.attributes = [];
                 for (var i = 0; i < node.attributes.length; i++) {
                     inode.attributes.push(node.attributes[i].value); //todo: ensure this returns the same array as chrome
                     inode.attributes.push(node.attributes[i].value);
@@ -281,14 +285,16 @@ module F12.Proxy {
                         documentURL: browser.document.URL,
                         baseURL: browser.document.URL, // fixme: this line or the above line is probaly not right
                         xmlVersion: browser.document.xmlVersion,
-                        childNodeCount: browser.document.childNodes.length
-                    };
 
+                    };
+                    if (browser.document.childNodes.length > 0) {
+                        x.childNodeCount = browser.document.childNodes.length;
+                    }
 
                     for (var i = 0; i < browser.document.childNodes.length; i++){
                         this.popKidsRecursive(x, browser.document.childNodes[i],i, 2);
                     }
-
+                   
 
                     //browser.document.
                     processedResult = {
@@ -299,10 +305,40 @@ module F12.Proxy {
 
                     break;
                 case "hideHighlight":
+                    browser.highlightElement(null, "", "", "", "");
                     processedResult = {}
                     break;
 
                 case "highlightNode":
+                    var selectElementColor = {
+                        margin: "rgba(250, 212, 107, 0.50)",
+                        border: "rgba(120, 181, 51, 0.50)",
+                        padding: "rgba(247, 163, 135, 0.50)",
+                        content: "rgba(168, 221, 246, 0.50)"
+                    };
+                    /*
+                    var basicHighlightColor = {
+                        margin: "rgba(250, 212, 107, 0.75)",
+                        border: "rgba(120, 181, 51, 0.75)",
+                        padding: "rgba(247, 163, 135, 0.75)",
+                        content: "rgba(168, 221, 246, 0.75)"
+                    };
+
+                    var hoverElementColor = {
+                        margin: "rgba(250, 212, 107, 0.50)",
+                        border: "rgba(120, 181, 51, 0.50)",
+                        padding: "rgba(247, 163, 135, 0.50)",
+                        content: "rgba(168, 221, 246, 0.50)"
+                    };*/
+
+                    var element_to_highlight: Node = this._mapUidToNode.get(request.params.nodeId);
+                    while (element_to_highlight.nodeType != NodeType.ELEMENT_NODE) {
+                        element_to_highlight = element_to_highlight.parentNode;
+                    }
+
+                    //var toHighlight = browser.document.getElementById("content");
+                    browser.highlightElement((<Element>element_to_highlight), selectElementColor.margin, selectElementColor.border, selectElementColor.padding, selectElementColor.content);
+
                     processedResult = {}
                     break;
 
