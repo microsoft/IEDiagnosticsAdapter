@@ -332,14 +332,22 @@ module F12.Proxy {
                     };*/
 
                     var element_to_highlight: Node = this._mapUidToNode.get(request.params.nodeId);
-                    while (element_to_highlight.nodeType != NodeType.ELEMENT_NODE) {
+                    while (element_to_highlight && element_to_highlight.nodeType != NodeType.ELEMENT_NODE) {
                         element_to_highlight = element_to_highlight.parentNode;
                     }
-
-                    //var toHighlight = browser.document.getElementById("content");
-                    browser.highlightElement((<Element>element_to_highlight), selectElementColor.margin, selectElementColor.border, selectElementColor.padding, selectElementColor.content);
-
-                    processedResult = {}
+                    if (element_to_highlight) {
+                        //var toHighlight = browser.document.getElementById("content");
+                        try {
+                            browser.highlightElement((<Element>element_to_highlight), selectElementColor.margin, selectElementColor.border, selectElementColor.padding, selectElementColor.content);
+                        } catch (e) {
+                            // todo: I have no idea why this randomly fails when you give it the head node, but it does
+                        }
+                        processedResult = {}
+                    }
+                    else {
+                        processedResult = {}
+                        processedResult.error = "could not find element" ; //todo find official error
+                    }
                     break;
 
                 case "requestChildNodes":
