@@ -16,7 +16,7 @@ module F12.Proxy {
         constructor() {
             this._mapUidToNode = new Map<number, Node>();
             this._mapNodeToUid = new WeakMap<Node, number>();
-            this._nextAvailableUid = 44; // 43 is reserved for root to copy chrome, maybe change this to 2 later
+            this._nextAvailableUid = 2; // 1 is reserved for the root
             this.windowExternal = (<any>external);
             this.windowExternal.addEventListener("message", (e: any) => this.messageHandler(e));
         }
@@ -142,8 +142,7 @@ module F12.Proxy {
         private _mapNodeToUid: WeakMap<Node, number>;
         private _nextAvailableUid: number;
 
-        private nodeToINode(node: Node): INode {
-
+        private createChromeNodeFromIENode(node: Node): INode {
             var inode: INode = {
                 nodeId: +this.getOrAssignUid(node),
                 nodeType: node.nodeType,
@@ -159,25 +158,11 @@ module F12.Proxy {
             if (node.attributes) {
                 inode.attributes = [];
                 for (var i = 0; i < node.attributes.length; i++) {
-                    inode.attributes.push(node.attributes[i].name); //todo: ensure this returns the same array as chrome
+                    inode.attributes.push(node.attributes[i].name);
                     inode.attributes.push(node.attributes[i].value);
                 }
             }
 
-            return inode;
-        }
-
-        private popKidsRecursive(inode: INode, node: Node, childNum: number, depth: number): INode { //fixme childNum is not needed
-            var newchild: INode = this.nodeToINode(node);
-            if (!inode.children) {
-                inode.children = [];
-            }
-            inode.children.push(newchild);
-            if (depth > 0) {
-                for (var i = 0; i < newchild.childNodeCount; i++) {
-                    this.popKidsRecursive(newchild, node.childNodes[i], i, depth - 1);
-                }
-            }
             return inode;
         }
 
@@ -190,13 +175,6 @@ module F12.Proxy {
                 return 1;
             }
             var uid: number;
-            //var uid = (<HTMLElement>node).uniqueID;
-            //if (uid) {
-            // if (this.getNode(uid)) { // <-- should ALWAYS succeed.
-            //      return uid;
-            //   }
-            // needs mapping then continue with this id.
-            //}
 
             if (this._mapNodeToUid.has(node)) {
                 return this._mapNodeToUid.get(node);
@@ -208,61 +186,32 @@ module F12.Proxy {
             this._mapNodeToUid.set(node, uid);
             return uid;
         }
-        /*
-        public getNode(uid: string): Node {
-            if (uid === "#root") {
-                return browser.document;
-            }
 
-            var node: Node = this._dom.getElementByUniqueId(uid);
-            if (node) {
-                if (!this.isNodeAccessible(node)) {
-                    // Should never happen.
-                    return null;
-                }
-
-                return node;
-            }
-
-            node = this._mapUidToNode.get(uid);
-            if (!node) {
-                return null;
-            }
-
-            if (!this.isNodeAccessible(node)) {
-                this._mapUidToNode.delete(uid);
-                return null;
-            }
-
-            return node;
-        }*/
-
-        private popKidsRecursiveTry2(iEnode: Node): INode {
-            var chromeNode: INode = this.nodeToINode(iEnode);
+        // same as createChromeNodeFromIENode but also recursively converts child nodes. //todo: add depth limitation
+        private createChromeNodeFromIENodeRecursive(iEnode: Node): INode {
+            var chromeNode: INode = this.createChromeNodeFromIENode(iEnode);
             if (!chromeNode.children && chromeNode.childNodeCount > 0) {
                 chromeNode.children = [];
             }
             //todo: add an assert iEnode.childNodes.length == chromeNode.childNodeCount 
             for (var i = 0; i < iEnode.childNodes.length; i++) {
                 if (iEnode.childNodes[i].nodeType == NodeType.ELEMENT_NODE) {
-                    chromeNode.children.push(this.popKidsRecursiveTry2(iEnode.childNodes[i]));
+                    chromeNode.children.push(this.createChromeNodeFromIENodeRecursive(iEnode.childNodes[i]));
                 }
             }
-
             return chromeNode;
         }
 
         private setChildNodes(id: number): void {
             var iEnode: Node = this._mapUidToNode.get(id);
-            var chromeNode = this.nodeToINode(iEnode);
+            var chromeNode = this.createChromeNodeFromIENode(iEnode);
             var nodeArray: INode[] = []
             for (var i = 0; i < iEnode.childNodes.length; i++) {
-                nodeArray.push(this.popKidsRecursiveTry2(iEnode.childNodes[i]));
+                nodeArray.push(this.createChromeNodeFromIENodeRecursive(iEnode.childNodes[i]));
             }
 
-
             // Send the response back over the websocket
-            var response: any = {}; // todo type this. it has no ide so its not an Iwebkitresponce
+            var response: any = {}; // todo type this. it has no id so its not an Iwebkitresponce
             response.method = "DOM.setChildNodes";
             response.params = {};
             response.params.parentId = id;
@@ -277,18 +226,22 @@ module F12.Proxy {
             switch (method) {
                 //todo pull out into files/funcions
                 case "getDocument":
-                    //var id:string =.toString();
                     var x: INode = {
-                        nodeId: 43, //+browser.document.uniqueID, // unary + to convert string to number fixme
+                        nodeId: 1,
                         nodeType: browser.document.nodeType,
                         nodeName: browser.document.nodeName,
                         localName: browser.document.localName || "",
                         nodeValue: browser.document.nodeValue || "",
                         documentURL: browser.document.URL,
-                        baseURL: browser.document.URL, // fixme: this line or the above line is probaly not right
+                        baseURL: browser.document.URL, // fixme: this line or the above line is probably not right
                         xmlVersion: browser.document.xmlVersion,
 
                     };
+
+                    if (!this._mapUidToNode.has(1)) {
+                        this._mapUidToNode.set(1, browser.document);
+                        this._mapNodeToUid.set(browser.document, 1);
+                    }
                     if (browser.document.childNodes.length > 0) {
                         x.childNodeCount = browser.document.childNodes.length;
                         x.children = [];
@@ -296,7 +249,7 @@ module F12.Proxy {
 
                     for (var i = 0; i < browser.document.childNodes.length; i++){
                         if (browser.document.childNodes[i].nodeType == NodeType.ELEMENT_NODE) {
-                            x.children.push(this.popKidsRecursiveTry2(browser.document.childNodes[i]));
+                            x.children.push(this.createChromeNodeFromIENodeRecursive(browser.document.childNodes[i]));
                         }
                     }
                    
@@ -321,20 +274,6 @@ module F12.Proxy {
                         padding: "rgba(247, 163, 135, 0.50)",
                         content: "rgba(168, 221, 246, 0.50)"
                     };
-                    /*
-                    var basicHighlightColor = {
-                        margin: "rgba(250, 212, 107, 0.75)",
-                        border: "rgba(120, 181, 51, 0.75)",
-                        padding: "rgba(247, 163, 135, 0.75)",
-                        content: "rgba(168, 221, 246, 0.75)"
-                    };
-
-                    var hoverElementColor = {
-                        margin: "rgba(250, 212, 107, 0.50)",
-                        border: "rgba(120, 181, 51, 0.50)",
-                        padding: "rgba(247, 163, 135, 0.50)",
-                        content: "rgba(168, 221, 246, 0.50)"
-                    };*/
 
                     var element_to_highlight: Node = this._mapUidToNode.get(request.params.nodeId);
                     while (element_to_highlight && element_to_highlight.nodeType != NodeType.ELEMENT_NODE) {
@@ -360,7 +299,6 @@ module F12.Proxy {
                         //var nodeId: number = ;
                         this.setChildNodes(request.params.nodeId);
                     }
-
 
                     processedResult = {};
                     break;
