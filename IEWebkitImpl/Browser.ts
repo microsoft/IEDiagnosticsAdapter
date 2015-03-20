@@ -147,7 +147,7 @@ module F12.Proxy {
             var inode: INode = {
                 nodeId: +this.getOrAssignUid(node),
                 nodeType: node.nodeType,
-                nodeName: node.nodeName || "",
+                nodeName: node.nodeName,
                 localName: browser.document.localName || "",
                 nodeValue: browser.document.nodeValue || "",
 
@@ -159,7 +159,7 @@ module F12.Proxy {
             if (node.attributes) {
                 inode.attributes = [];
                 for (var i = 0; i < node.attributes.length; i++) {
-                    inode.attributes.push(node.attributes[i].value); //todo: ensure this returns the same array as chrome
+                    inode.attributes.push(node.attributes[i].name); //todo: ensure this returns the same array as chrome
                     inode.attributes.push(node.attributes[i].value);
                 }
             }
@@ -237,14 +237,16 @@ module F12.Proxy {
             return node;
         }*/
 
-        private popKidsRecursiveTry2(iEnode: Node): INode { //fixme childNum is not needed
+        private popKidsRecursiveTry2(iEnode: Node): INode {
             var chromeNode: INode = this.nodeToINode(iEnode);
             if (!chromeNode.children && chromeNode.childNodeCount > 0) {
                 chromeNode.children = [];
             }
             //todo: add an assert iEnode.childNodes.length == chromeNode.childNodeCount 
             for (var i = 0; i < iEnode.childNodes.length; i++) {
-                chromeNode.children.push(this.popKidsRecursiveTry2(iEnode.childNodes[i]));
+                if (iEnode.childNodes[i].nodeType == NodeType.ELEMENT_NODE) {
+                    chromeNode.children.push(this.popKidsRecursiveTry2(iEnode.childNodes[i]));
+                }
             }
 
             return chromeNode;
@@ -289,10 +291,13 @@ module F12.Proxy {
                     };
                     if (browser.document.childNodes.length > 0) {
                         x.childNodeCount = browser.document.childNodes.length;
+                        x.children = [];
                     }
 
                     for (var i = 0; i < browser.document.childNodes.length; i++){
-                        this.popKidsRecursive(x, browser.document.childNodes[i],i, 2);
+                        if (browser.document.childNodes[i].nodeType == NodeType.ELEMENT_NODE) {
+                            x.children.push(this.popKidsRecursiveTry2(browser.document.childNodes[i]));
+                        }
                     }
                    
 
