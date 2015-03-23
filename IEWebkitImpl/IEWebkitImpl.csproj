@@ -6,7 +6,7 @@
     <ProjectGuid>{1405EE7F-BDA9-4692-B689-200CA8DC1FBF}</ProjectGuid>
     <ProjectTypeGuids>{349c5851-65df-11da-9384-00065b846f21};{fae04ec0-301f-11d3-bf4b-00c04f79efbc}</ProjectTypeGuids>
     <OutputType>Library</OutputType>
-    <OutputPath>bin</OutputPath>
+    <OutputPath>bin\</OutputPath>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
@@ -25,6 +25,7 @@
     <TypeScriptCompile Include="Browser.ts" />
     <TypeScriptCompile Include="Common.ts" />
     <TypeScriptCompile Include="Debugger.ts" />
+    <TypeScriptCompile Include="DOM.ts" />
     <TypeScriptCompile Include="Interfaces.d.ts" />
   </ItemGroup>
   <ItemGroup>
@@ -91,6 +92,14 @@
     <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
     <TypeScriptCompileOnSaveEnabled>True</TypeScriptCompileOnSaveEnabled>
     <TypeScriptOutDir>bin\$(Configuration)</TypeScriptOutDir>
+    <OutputPath>bin\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <TypeScriptOutDir>D:\git\IEDiagnosticsAdapter\IEWebKitImpl\bin\release\</TypeScriptOutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <TypeScriptOutDir>D:\git\IEDiagnosticsAdapter\IEWebKitImpl\bin\debug\</TypeScriptOutDir>
+    <TypeScriptNoImplicitAny>False</TypeScriptNoImplicitAny>
   </PropertyGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\TypeScript\Microsoft.TypeScript.targets" Condition="Exists('$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\TypeScript\Microsoft.TypeScript.targets')" />
 </Project>
