@@ -22,7 +22,6 @@ module F12.Proxy {
         public PostResponse(id: number, value: IWebKitResult) {
             // Send the response back over the websocket
             var response: IWebKitResponse = Common.CreateResponse(id, value);
-            var debughelper = JSON.stringify(response); //todo : remove this
             this.windowExternal.sendMessage("postMessage", JSON.stringify(response));
         }
 
