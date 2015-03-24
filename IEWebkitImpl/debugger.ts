@@ -225,7 +225,7 @@ module F12.Proxy {
             this._isAtBreakpoint = false;
             this._documentMap = new Map<string, number>();
             this._lineEndingsMap = new Map<number, number[]>();
-
+            this._firstrun = true;
             // Hook up notifications
             this._debugger.addEventListener("onAddDocuments", (documents: IDocument[]) => this.onAddDocuments(documents));
             this._debugger.addEventListener("onRemoveDocuments", (docIds: number[]) => this.onRemoveDocuments(docIds));
@@ -251,6 +251,17 @@ module F12.Proxy {
             // Process a successful request
             if (request) {
                 var methodParts = request.method.split(".");
+              //  debugger;
+
+                // This is a hack to get console in VS showing up so that it can work at a breakpoint
+                if (methodParts[0] === "Page" && methodParts[1] === "getResourceTree") {
+                    //var r = JSON.parse('{"result":{"frameTree":{"frame":{"id":"1500.1","loaderId":"1500.2","url":"http://f12host/clock/","mimeType":"text/html","securityOrigin":"http://f12host"},"resources":[{ "url": "http://f12host/clock/imgs/clock1.jpg", "type": "Image", "mimeType": "image/jpeg" }, { "url": "http://f12host/clock/app.css", "type": "Stylesheet", "mimeType": "text/css" }, { "url": "http://f12host/clock/app.js", "type": "Script", "mimeType": "application/javascript" }, { "url": "http://f12host/clock/clock.js", "type": "Script", "mimeType": "application/javascript" }] } } }');
+                    var r = JSON.parse('{"result": { "frameTree": { "frame": { "id": "12260.1", "loaderId": "12260.2", "url": "http://f12host/clock/", "mimeType": "text/html", "securityOrigin": "http://f12host" }, "resources": [{ "url": "http://f12host/clock/imgs/clock1.jpg", "type": "Image", "mimeType": "image/jpeg" }, { "url": "http://f12host/clock/app.css", "type": "Stylesheet", "mimeType": "text/css" }, { "url": "http://f12host/clock/app.js", "type": "Script", "mimeType": "application/javascript" }, { "url": "http://f12host/clock/clock.js", "type": "Script", "mimeType": "application/javascript" }] } } }');
+                               // '{"id":7,"result":{"frameTree":{"frame":{"id":"12260.1","loaderId":"12260.2","url":"http://f12host/clock/","mimeType":"text/html","securityOrigin":"http://f12host"},"resources":[{"url":"http://f12host/clock/imgs/clock1.jpg","type":"Image","mimeType":"image/jpeg"},{"url":"http://f12host/clock/app.css","type":"Stylesheet","mimeType":"text/css"},{"url":"http://f12host/clock/app.js","type":"Script","mimeType":"application/javascript"},{"url":"http://f12host/clock/clock.js","type":"Script","mimeType":"application/javascript"}]}}}'
+                    this.PostResponse(request.id, r);
+                }
+
+                
 
                 if (!this._isAtBreakpoint && methodParts[0] !== "Debugger") {
                     return host.postMessageToEngine("browser", this._isAtBreakpoint, JSON.stringify(request));
@@ -264,15 +275,8 @@ module F12.Proxy {
                         this.ProcessDebugger(methodParts[1], request);
                         break;
                     default:
-
-                        // This is a hack to get console in VS showing up so that it can work at a breakpoint
-                        if (methodParts[0] === "Page" && methodParts[1] === "getResourceTree") {
-                            var r = JSON.parse('{"result":{"frameTree":{"frame":{"id":"1500.1","loaderId":"1500.2","url":"http://f12host/clock/","mimeType":"text/html","securityOrigin":"http://f12host"},"resources":[{ "url": "http://f12host/clock/imgs/clock1.jpg", "type": "Image", "mimeType": "image/jpeg" }, { "url": "http://f12host/clock/app.css", "type": "Stylesheet", "mimeType": "text/css" }, { "url": "http://f12host/clock/app.js", "type": "Script", "mimeType": "application/javascript" }, { "url": "http://f12host/clock/clock.js", "type": "Script", "mimeType": "application/javascript" }] } } }');
-                            this.PostResponse(request.id, r);
-                            break;
-                        }
-
                         return host.postMessageToEngine("browser", this._isAtBreakpoint, JSON.stringify(request));
+                        break;
                 }
             }
         }
@@ -608,13 +612,22 @@ module F12.Proxy {
             this._debugger.resume(action);
             this._isAtBreakpoint = false;
         }
-
+        private _firstrun;
         private onAddDocuments(documents: IDocument[]): void {
+
+            if (this._firstrun) {
+                this._firstrun = false;
+                //HAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCCCCCCCCCCCCCCKKKKKKKKKKKKKKKKKKKKKKKK HACK
+                host.postMessage('{ "method": "Runtime.executionContextCreated", "params": { "context": { "id": 1, "isPageContext": true, "name": "", "origin": "", "frameId": "10700.1" } } }');
+            }
+
+
             for (var i = 0; i < documents.length; i++) {
                 var document: IDocument = documents[i];
 
                 this._documentMap.set(document.url, document.docId);
 
+                var content = document.mimeType;
                 this.PostNotification("Debugger.scriptParsed", {
                     scriptId: "" + document.docId,
                     url: document.url,

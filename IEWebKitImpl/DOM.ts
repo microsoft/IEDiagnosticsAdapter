@@ -101,8 +101,8 @@ module F12.Proxy {
             response.params = {};
             response.params.parentId = id;
             response.params.nodes = nodeArray;
-            var debughelper = JSON.stringify(response); //todo : remove this
             this._windowExternal.sendMessage("postMessage", JSON.stringify(response));
+
             return {}; // actual response to setChildNodes is empty.
         }
 

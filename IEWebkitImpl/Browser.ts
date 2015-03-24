@@ -116,7 +116,6 @@ module F12.Proxy {
             switch (method) {
                 case "navigate":
                     if (request.params.url) {
-                        //browser.document.parentWindow.alert(browser.document.location.href + " -> " + request.params.url);
                         browser.executeScript("window.location.href = '" + request.params.url + "'");
 
                         processedResult = {
