@@ -4,6 +4,7 @@
 
 /// <reference path="Interfaces.d.ts"/>
 /// <reference path="Browser.ts"/>
+
 module F12.Proxy {
     "use strict";
 
@@ -29,7 +30,7 @@ module F12.Proxy {
         }
 
         private createChromeNodeFromIENode(node: Node): INode {
-            var inode: INode = {
+            var iNode: INode = {
                 nodeId: this.getOrAssignUid(node),
                 nodeType: node.nodeType,
                 nodeName: node.nodeName,
@@ -39,23 +40,23 @@ module F12.Proxy {
             };
 
             if (node.childNodes.length > 0) {
-                inode.childNodeCount = node.childNodes.length;
+                iNode.childNodeCount = node.childNodes.length;
             }
 
             if (node.attributes) {
-                inode.attributes = [];
+                iNode.attributes = [];
                 for (var i = 0; i < node.attributes.length; i++) {
-                    inode.attributes.push(node.attributes[i].name);
-                    inode.attributes.push(node.attributes[i].value);
+                    iNode.attributes.push(node.attributes[i].name);
+                    iNode.attributes.push(node.attributes[i].value);
                 }
             }
 
-            return inode;
+            return iNode;
         }
 
         public getOrAssignUid(node: Node): number {
             if (!node) {
-                throw new Error("you must pass a valid node");
+                throw new Error("invalid node");
             }
 
             if (node === browser.document) {
@@ -73,31 +74,35 @@ module F12.Proxy {
             return uid;
         }
 
-        // same as createChromeNodeFromIENode but also recursively converts child nodes. //todo: add depth limitation
-        private createChromeNodeFromIENodeRecursive(iEnode: Node): INode {
-            var chromeNode: INode = this.createChromeNodeFromIENode(iEnode);
+         /**
+          * Does the same thing as createChromeNodeFromIENode but also recursively converts child nodes. 
+          */
+        private createChromeNodeFromIENodeRecursive(ieNode: Node): INode {
+            //todo: add depth limitation
+
+            var chromeNode: INode = this.createChromeNodeFromIENode(ieNode);
             if (!chromeNode.children && chromeNode.childNodeCount > 0) {
                 chromeNode.children = [];
             }
 
-            for (var i = 0; i < iEnode.childNodes.length; i++) {
-                if (iEnode.childNodes[i].nodeType == NodeType.ELEMENT_NODE) {
-                    chromeNode.children.push(this.createChromeNodeFromIENodeRecursive(iEnode.childNodes[i]));
+            for (var i = 0; i < ieNode.childNodes.length; i++) {
+                if (ieNode.childNodes[i].nodeType === NodeType.ELEMENT_NODE) {
+                    chromeNode.children.push(this.createChromeNodeFromIENodeRecursive(ieNode.childNodes[i]));
                 }
             }
             return chromeNode;
         }
 
         private setChildNodes(id: number): any {
-            var iEnode: Node = this._mapUidToNode.get(id);
-            var chromeNode = this.createChromeNodeFromIENode(iEnode);
+            var ieNode: Node = this._mapUidToNode.get(id);
+            var chromeNode = this.createChromeNodeFromIENode(ieNode);
             var nodeArray: INode[] = []
-            for (var i = 0; i < iEnode.childNodes.length; i++) {
-                nodeArray.push(this.createChromeNodeFromIENodeRecursive(iEnode.childNodes[i]));
+            for (var i = 0; i < ieNode.childNodes.length; i++) {
+                nodeArray.push(this.createChromeNodeFromIENodeRecursive(ieNode.childNodes[i]));
             }
 
             // Send the response back over the websocket
-            var response: any = {}; // todo type this. it has no id so its not an Iwebkitresponce
+            var response: any = {}; // todo add a type for this. It has no id so its not an IWebKitResponse
             response.method = "DOM.setChildNodes";
             response.params = {};
             response.params.parentId = id;
@@ -130,7 +135,7 @@ module F12.Proxy {
             }
 
             for (var i = 0; i < browser.document.childNodes.length; i++) {
-                if (browser.document.childNodes[i].nodeType == NodeType.ELEMENT_NODE) {
+                if (browser.document.childNodes[i].nodeType === NodeType.ELEMENT_NODE) {
                     document.children.push(this.createChromeNodeFromIENodeRecursive(browser.document.childNodes[i]));
                 }
             }
@@ -155,7 +160,7 @@ module F12.Proxy {
             }
             if (element_to_highlight) {
                 try {
-                browser.highlightElement((<Element>element_to_highlight), this._elementHighlightColor.margin, this._elementHighlightColor.border, this._elementHighlightColor.padding, this._elementHighlightColor.content);
+                    browser.highlightElement((<Element>element_to_highlight), this._elementHighlightColor.margin, this._elementHighlightColor.border, this._elementHighlightColor.padding, this._elementHighlightColor.content);
                 } catch (e) {
                     // todo: I have no idea why this randomly fails when you give it the head node, but it does
                 }

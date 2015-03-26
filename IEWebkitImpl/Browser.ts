@@ -4,6 +4,7 @@
 
 /// <reference path="Interfaces.d.ts"/>
 /// <reference path="DOM.ts"/>
+
 module F12.Proxy {
     "use strict";
 
@@ -161,9 +162,11 @@ module F12.Proxy {
                         case "Page":
                             this.ProcessPage(methodParts[1], request);
                             break;
+
                         case "DOM":
                             domHandler.ProcessDOM(methodParts[1], request);
                             break;
+
                         default:
                             this.PostResponse(request.id, {});
                             break;

@@ -619,7 +619,6 @@ module F12.Proxy {
                 host.postMessage('{ "method": "Runtime.executionContextCreated", "params": { "context": { "id": 1, "isPageContext": true, "name": "", "origin": "", "frameId": "10700.1" } } }');
             }
 
-
             for (var i = 0; i < documents.length; i++) {
                 var document: IDocument = documents[i];
                 this._documentMap.set(document.url, document.docId);

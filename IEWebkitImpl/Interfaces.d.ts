@@ -18,7 +18,7 @@ declare module F12.Proxy {
         NOTATION_NODE = 12,
     }
 
-    //// dom
+    //// DOM
     export interface INode {
         attributes?: string[];
         childNodeCount?: number;
@@ -40,8 +40,8 @@ declare module F12.Proxy {
     }
 
 
-    //// other
-    interface messageResponce {
+    // WebKit Connection
+    interface IMessageResponce {
         id?: number;
         error?: string;
         result?: string;
