@@ -8,7 +8,7 @@ https://github.com/Microsoft/IEDiagnosticsAdapter/releases/tag/0.1.2
 ## Installing
 Simply download and unpack a release on to your hard drive.
 
-1. Download the current release [ x86](https://github.com/Microsoft/IEDiagnosticsAdapter/releases/download/0.1.2/ieDiagnosticsAdapter-v0.1.2x86.zip) or [x64]https://github.com/Microsoft/IEDiagnosticsAdapter/releases/download/0.1.2/ieDiagnosticsAdapter-v0.1.2x64.zip)
+1. Download the current release [ x86](https://github.com/Microsoft/IEDiagnosticsAdapter/releases/download/0.1.2/ieDiagnosticsAdapter-v0.1.2x86.zip) or [x64](https://github.com/Microsoft/IEDiagnosticsAdapter/releases/download/0.1.2/ieDiagnosticsAdapter-v0.1.2x64.zip)
 2. Copy into a folder on disk where you wish to run the file from e.g. `%HOMEPATH%\Desktop`
 3. Extract the files
 4. Delete the zip file
