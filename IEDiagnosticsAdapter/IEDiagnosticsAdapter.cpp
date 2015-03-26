@@ -261,6 +261,7 @@ HRESULT IEDiagnosticsAdapter::ConnectToInstance(_In_ IEInstance& instance)
             // Inject script onto the browser thread
             hr = this->InjectScript(L"browser", L"Common.js", IDR_COMMON_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"browserMain.js", IDR_BROWSER_SCRIPT, hwnd);
+            hr = this->InjectScript(L"browser", L"DOM.js", IDR_DOM_SCRIPT, hwnd);
 
             // Inject script  onto the debugger thread
             hr = this->InjectScript(L"debugger", L"Common.js", IDR_COMMON_SCRIPT, hwnd);

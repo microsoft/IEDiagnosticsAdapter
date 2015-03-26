@@ -219,12 +219,14 @@ module F12.Proxy {
         private _isEnabled: boolean;
         private _documentMap: Map<string, number>;
         private _lineEndingsMap: Map<number, number[]>;
+        private _firstrun;
 
         constructor() {
             this._debugger = debug;
             this._isAtBreakpoint = false;
             this._documentMap = new Map<string, number>();
             this._lineEndingsMap = new Map<number, number[]>();
+            this._firstrun = true;
 
             // Hook up notifications
             this._debugger.addEventListener("onAddDocuments", (documents: IDocument[]) => this.onAddDocuments(documents));
@@ -610,9 +612,16 @@ module F12.Proxy {
         }
 
         private onAddDocuments(documents: IDocument[]): void {
+
+            if (this._firstrun) {
+                this._firstrun = false;
+                // This hack tells the Chrome dev tools that we are ready to receive console messages. This will be refactored when I get around to implementing the rest of console functionality
+                host.postMessage('{ "method": "Runtime.executionContextCreated", "params": { "context": { "id": 1, "isPageContext": true, "name": "", "origin": "", "frameId": "10700.1" } } }');
+            }
+
+
             for (var i = 0; i < documents.length; i++) {
                 var document: IDocument = documents[i];
-
                 this._documentMap.set(document.url, document.docId);
 
                 this.PostNotification("Debugger.scriptParsed", {

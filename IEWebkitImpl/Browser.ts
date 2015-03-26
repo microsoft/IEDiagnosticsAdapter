@@ -3,6 +3,7 @@
 //
 
 /// <reference path="Interfaces.d.ts"/>
+/// <reference path="DOM.ts"/>
 module F12.Proxy {
     "use strict";
 
@@ -10,22 +11,22 @@ module F12.Proxy {
     declare var request: any; //todo: create some interface for request
 
     declare var browser: IBrowser;
+    export class BrowserHandler {
+        private windowExternal: any; //todo: Make an appropriate TS interface for external
 
-    class BrowserHandler {
-        windowExternal: any; //todo: Make an appropriate TS interface for external
         constructor() {
-            this.windowExternal = (<any>external); 
+            this.windowExternal = (<any>external);
             this.windowExternal.addEventListener("message", (e: any) => this.messageHandler(e));
+        }
+
+        public PostResponse(id: number, value: IWebKitResult) {
+            // Send the response back over the websocket
+            var response: IWebKitResponse = Common.CreateResponse(id, value);
+            this.windowExternal.sendMessage("postMessage", JSON.stringify(response));
         }
 
         private alert(message: string): void {
             this.windowExternal.sendMessage("alert", message);
-        }
-
-        private PostResponse(id: number, value: IWebKitResult) {
-            // Send the response back over the websocket
-            var response: IWebKitResponse = Common.CreateResponse(id, value);
-            this.windowExternal.sendMessage("postMessage", JSON.stringify(response));
         }
 
         private PostNotification(method: string, params: any) {
@@ -115,7 +116,6 @@ module F12.Proxy {
             switch (method) {
                 case "navigate":
                     if (request.params.url) {
-                        //browser.document.parentWindow.alert(browser.document.location.href + " -> " + request.params.url);
                         browser.executeScript("window.location.href = '" + request.params.url + "'");
 
                         processedResult = {
@@ -161,7 +161,9 @@ module F12.Proxy {
                         case "Page":
                             this.ProcessPage(methodParts[1], request);
                             break;
-
+                        case "DOM":
+                            domHandler.ProcessDOM(methodParts[1], request);
+                            break;
                         default:
                             this.PostResponse(request.id, {});
                             break;
@@ -179,5 +181,6 @@ module F12.Proxy {
             }
         }
     }
-    var browserHandler = new BrowserHandler();
+
+    export var browserHandler: BrowserHandler = new BrowserHandler();
 }
