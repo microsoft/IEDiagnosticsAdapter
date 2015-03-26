@@ -617,7 +617,7 @@ module F12.Proxy {
 
             if (this._firstrun) {
                 this._firstrun = false;
-                //HAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCCCCCCCCCCCCCCKKKKKKKKKKKKKKKKKKKKKKKK HACK
+                // This hack tells the Chrome dev tools that we are ready to receive console messages. This will be refactored when I get around to implementing the rest of console functionality
                 host.postMessage('{ "method": "Runtime.executionContextCreated", "params": { "context": { "id": 1, "isPageContext": true, "name": "", "origin": "", "frameId": "10700.1" } } }');
             }
 
