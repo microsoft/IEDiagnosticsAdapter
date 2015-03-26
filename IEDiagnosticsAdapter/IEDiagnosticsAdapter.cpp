@@ -108,7 +108,7 @@ LRESULT IEDiagnosticsAdapter::OnMessageFromIE(UINT nMsg, WPARAM wParam, LPARAM l
         }
 
         utf8.resize(utf8Length);
-        utf8Length = ::WideCharToMultiByte(CP_UTF8, 0, buffer, length, &utf8[0], utf8.length(), nullptr, nullptr);
+        utf8Length = ::WideCharToMultiByte(CP_UTF8, 0, buffer, length, &utf8[0], static_cast<int>(utf8.length()), nullptr, nullptr);
         message.ReleaseBuffer();
         ATLENSURE_RETURN_HR(utf8Length > 0, ::GetLastError());
 
@@ -262,12 +262,9 @@ HRESULT IEDiagnosticsAdapter::ConnectToInstance(_In_ IEInstance& instance)
             hr = this->InjectScript(L"browser", L"Common.js", IDR_COMMON_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"browserMain.js", IDR_BROWSER_SCRIPT, hwnd);
 
-
-
             // Inject script  onto the debugger thread
             hr = this->InjectScript(L"debugger", L"Common.js", IDR_COMMON_SCRIPT, hwnd);
             hr = this->InjectScript(L"debugger", L"debuggerMain.js", IDR_DEBUGGER_SCRIPT, hwnd);
-
 
             // Connected
             instance.isConnected = true;
@@ -391,14 +388,14 @@ bool IEDiagnosticsAdapter::OnValidate(websocketpp::connection_hdl hdl)
     server::connection_ptr con = m_server.get_con_from_hdl(hdl);
 
     string resource = con->get_resource();
-    unsigned idIndex = resource.find_last_of("/");
+    size_t idIndex = resource.find_last_of("/");
     if (idIndex == string::npos)
     {
         // No identifier
         return false;
     }
 
-    unsigned typeIndex = resource.find_last_of("/", idIndex - 1);
+    size_t typeIndex = resource.find_last_of("/", idIndex - 1);
     if (typeIndex == string::npos)
     {
         // No connection type
