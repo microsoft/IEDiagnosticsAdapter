@@ -266,26 +266,28 @@ namespace Helpers
         for (auto i = 0; i < value.GetLength(); i++)
         {
             auto c = value[i];
-            if (c > 126)
+            switch (c)
             {
-                CStringA charLiteral;
-                charLiteral.Format("\\u%04x", c);
-                escapedValue.Append(charLiteral);
-            }
-            else
-            {
-                switch (c)
-                {
-                    case '\\': escapedValue.Append("\\\\"); break;
-                    case '\"': escapedValue.Append("\\\""); break;
-                    case '/': escapedValue.Append("\\/"); break;
-                    case '\b': escapedValue.Append("\\b"); break;
-                    case '\f': escapedValue.Append("\\f"); break;
-                    case '\n': escapedValue.Append("\\n"); break;
-                    case '\r': escapedValue.Append("\\r"); break;
-                    case '\t': escapedValue.Append("\\t"); break;
-                    default: escapedValue.AppendChar((char)c); break;
-                }
+                case '\\': escapedValue.Append("\\\\"); break;
+                case '\"': escapedValue.Append("\\\""); break;
+                case '/': escapedValue.Append("\\/"); break;
+                case '\b': escapedValue.Append("\\b"); break;
+                case '\f': escapedValue.Append("\\f"); break;
+                case '\n': escapedValue.Append("\\n"); break;
+                case '\r': escapedValue.Append("\\r"); break;
+                case '\t': escapedValue.Append("\\t"); break;
+                default:
+                    if (c < 0x20 || c > 0x7e)
+                    {
+                        CStringA charLiteral;
+                        charLiteral.Format("\\u%04x", c);
+                        escapedValue.Append(charLiteral);
+                    }
+                    else
+                    {
+                        escapedValue.AppendChar(c);
+                    }
+                    break;
             }
         }
 
