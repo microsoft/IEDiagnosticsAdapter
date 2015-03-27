@@ -285,7 +285,7 @@ namespace Helpers
                     }
                     else
                     {
-                        escapedValue.AppendChar(c);
+                        escapedValue.AppendChar((char)c);
                     }
                     break;
             }
