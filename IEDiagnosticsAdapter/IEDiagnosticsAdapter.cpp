@@ -354,7 +354,7 @@ void IEDiagnosticsAdapter::OnHttp(websocketpp::connection_hdl hdl)
             url.Replace('\\', '/');
             url.Replace(" ", "%20");
             url.Replace("file://", "file:///");
-            CStringA title(it.second.title);
+            CStringA title = Helpers::EscapeJsonString(it.second.title);
             CStringA fileName(::PathFindFileNameW(it.second.filePath));
             CComBSTR guidBSTR(it.second.guid);
             CStringA guid(guidBSTR);
