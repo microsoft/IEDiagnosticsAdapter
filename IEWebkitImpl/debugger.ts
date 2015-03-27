@@ -254,6 +254,13 @@ module F12.Proxy {
             if (request) {
                 var methodParts = request.method.split(".");
 
+                // This is a hack to get console in VS showing up so that it can work at a breakpoint
+                if (methodParts[0] === "Page" && methodParts[1] === "getResourceTree") {
+                    var r = JSON.parse('{"result":{"frameTree":{"frame":{"id":"1500.1","loaderId":"1500.2","url":"http://f12host/clock/","mimeType":"text/html","securityOrigin":"http://f12host"},"resources":[{ "url": "http://f12host/clock/imgs/clock1.jpg", "type": "Image", "mimeType": "image/jpeg" }, { "url": "http://f12host/clock/app.css", "type": "Stylesheet", "mimeType": "text/css" }, { "url": "http://f12host/clock/app.js", "type": "Script", "mimeType": "application/javascript" }, { "url": "http://f12host/clock/clock.js", "type": "Script", "mimeType": "application/javascript" }] } } }');
+                    this.PostResponse(request.id, r);
+                    return
+                }
+
                 if (!this._isAtBreakpoint && methodParts[0] !== "Debugger") {
                     return host.postMessageToEngine("browser", this._isAtBreakpoint, JSON.stringify(request));
                 }
@@ -266,14 +273,6 @@ module F12.Proxy {
                         this.ProcessDebugger(methodParts[1], request);
                         break;
                     default:
-
-                        // This is a hack to get console in VS showing up so that it can work at a breakpoint
-                        if (methodParts[0] === "Page" && methodParts[1] === "getResourceTree") {
-                            var r = JSON.parse('{"result":{"frameTree":{"frame":{"id":"1500.1","loaderId":"1500.2","url":"http://f12host/clock/","mimeType":"text/html","securityOrigin":"http://f12host"},"resources":[{ "url": "http://f12host/clock/imgs/clock1.jpg", "type": "Image", "mimeType": "image/jpeg" }, { "url": "http://f12host/clock/app.css", "type": "Stylesheet", "mimeType": "text/css" }, { "url": "http://f12host/clock/app.js", "type": "Script", "mimeType": "application/javascript" }, { "url": "http://f12host/clock/clock.js", "type": "Script", "mimeType": "application/javascript" }] } } }');
-                            this.PostResponse(request.id, r);
-                            break;
-                        }
-
                         return host.postMessageToEngine("browser", this._isAtBreakpoint, JSON.stringify(request));
                 }
             }
