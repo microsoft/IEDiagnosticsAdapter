@@ -516,25 +516,33 @@ module F12.Proxy {
 
                 case "setBreakpointByUrl":
                     if (this._documentMap.has(request.params.url)) {
-                        var docId: number = this._documentMap.get(request.params.url);
+                        try{
+                            var docId: number = this._documentMap.get(request.params.url);
 
-                        var lineEndings = this.GetLineEndings(docId);
+                            var lineEndings = this.GetLineEndings(docId);
 
-                        var charCount = 0;
-                        for (var i = 0; i < request.params.lineNumber; i++) {
-                            charCount += lineEndings[i];
-                        }
-                        charCount += request.params.columnNumber;
-
-                        var info = this._debugger.addCodeBreakpoint(docId, charCount, request.params.condition, false);
-                        var location = this.GetLineColumnFromOffset(docId, info.location.start);
-
-                        processedResult = {
-                            result: {
-                                breakpointId: "" + info.breakpointId,
-                                locations: [location]
+                            var charCount = 0;
+                            for (var i = 0; i < request.params.lineNumber; i++) {
+                                charCount += lineEndings[i];
                             }
-                        };
+                            charCount += request.params.columnNumber;
+
+                            var info = this._debugger.addCodeBreakpoint(docId, charCount, request.params.condition, false);
+                            var location = this.GetLineColumnFromOffset(docId, info.location.start);
+
+                            processedResult = {
+                                result: {
+                                    breakpointId: "" + info.breakpointId,
+                                    locations: [location]
+                                }
+                            };
+                        
+                    } catch (ex) {
+                        this.PostResponse(0, {
+                            error: { description: "Invalid request" }
+                        });
+                        return;
+                    }
 
                     } else {
                         processedResult = {

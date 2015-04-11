@@ -3,13 +3,14 @@
 //
 
 /// <reference path="Interfaces.d.ts"/>
+/// <reference path="DiagnosticOM.d.ts" />
 /// <reference path="Browser.ts"/>
 
 module F12.Proxy {
     "use strict";
 
-    declare var browser: IBrowser;
-    export class DOMHandler {
+    declare var browser: DiagnosticsOM.IBrowser;
+    export class DOMHandler implements IDomainHandler {
         private _mapUidToNode: Map<number, Node>;
         private _mapNodeToUid: WeakMap<Node, number>;
         private _nextAvailableUid: number;
@@ -180,7 +181,7 @@ module F12.Proxy {
             return {};
         }
 
-        public ProcessDOM(method: string, request: IWebKitRequest): void {
+        public processMessage(method: string, request: IWebKitRequest): void {
             var processedResult;
 
             switch (method) {
