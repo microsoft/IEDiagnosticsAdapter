@@ -917,7 +917,7 @@ HRESULT ThreadController::OnPDMBreak(_In_ IRemoteDebugApplicationThread* pRDAThr
 
         // If this breakpoint was created with the Create XHR Breakpoint button, we need to tell the frontend that an XHR breakpoint was hit in order to display appropriate strings
         if (m_nextBreakEventType == L"readystatechange") 
-        {		
+        {
             for (auto it = m_spCurrentBreakInfo->breakpoints.begin(); it != m_spCurrentBreakInfo->breakpoints.end(); ++it) 
             {
                 if (std::find((**it).spEventTypes->begin(), (**it).spEventTypes->end(), s_xhrBreakpointFlag) != (**it).spEventTypes->end()) 
