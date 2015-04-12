@@ -23,7 +23,12 @@ module F12.Proxy {
             this.value = msCookie && msCookie.value || "unknown";
             this.domain = msCookie && msCookie.domain || "unknown";
             this.path = msCookie && msCookie.path || "unknown";
-            this.expires = msCookie && msCookie.expires && msCookie.expires.toDateString() || "unknown";
+            // Calling toString on the expires for a session cookie will result in unspecified error
+            if (msCookie && msCookie.session) {
+                this.expires = "";
+            } else {
+                this.expires = msCookie.expires && msCookie.expires.toString() || "unknown";
+            }
             if (msCookie) {
                 // Rough approximation of size as IE doesn't report the actual size
                 this.size = msCookie.name.length + msCookie.value.length;
@@ -53,7 +58,7 @@ module F12.Proxy {
 
                 processedResult = {
                     result: {
-                        coookies: webkitCookies
+                        cookies: webkitCookies
                     }
                 };
             } catch (ex) {

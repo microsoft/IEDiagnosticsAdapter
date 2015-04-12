@@ -59,7 +59,7 @@ module F12.Proxy {
                 if (request) {
                     var methodParts = request.method.split(".");
 
-                    //browser.document.parentWindow.alert(e.data);
+                    // browser.document.parentWindow.alert(e.data);
 
                     switch (methodParts[0]) {
                         case "Runtime":
