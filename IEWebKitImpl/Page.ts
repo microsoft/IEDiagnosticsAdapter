@@ -41,9 +41,9 @@ module F12.Proxy {
         }
     }
 
-    export class PageHandler implements IDomainHandler{
+    export class PageHandler implements IDomainHandler {
         constructor() {
-        
+
         }
 
         private getCookies(): IWebKitResponse {
@@ -69,14 +69,14 @@ module F12.Proxy {
 
             return processedResult;
         }
-        
-        private deleteCookie(request: IWebKitRequest):IWebKitResponse {
+
+        private deleteCookie(request: IWebKitRequest): IWebKitResponse {
             var processedResult: any = {};
             var cookieName: string = request.params.cookieName;
             var url: string = request.params.url;
 
             try {
-                resources.cookies.deleteCookie(cookieName, url);                
+                resources.cookies.deleteCookie(cookieName, url);
             } catch (ex) {
                 processedResult = {
                     error: ex
@@ -88,7 +88,7 @@ module F12.Proxy {
 
         private navigate(request: IWebKitRequest): IWebKitResponse {
             var processedResult: any = {};
-            
+
             try {
                 if (request.params.url) {
                     browser.executeScript("window.location.href = '" + request.params.url + "'");
@@ -99,6 +99,38 @@ module F12.Proxy {
                         }
                     };
                 }
+            } catch (ex) {
+                processedResult = {
+                    error: ex
+                };
+            }
+
+            return processedResult;
+        }
+
+        private getResourceTree(request: IWebKitRequest): IWebKitResponse {
+            var processedResult: any = {};
+
+            try {
+                var url = browser.document.parentWindow.location.href;
+                var mimeType = "text/html";
+                // Casting to any as the default lib.d.ts does not have it on the Location object
+                var securityOrigin = (<any>browser.document.parentWindow.location).origin;
+
+                processedResult = {
+                    result: {
+                        frameTree: {
+                            frame: {
+                                id: "1500.1",
+                                loaderId: "1500.2",
+                                url: url,
+                                mimeType: mimeType,
+                                securityOrigin: securityOrigin
+                            },
+                            resources: []
+                        }
+                    }
+                };
             } catch (ex) {
                 processedResult = {
                     error: ex
@@ -122,6 +154,10 @@ module F12.Proxy {
 
                 case "deleteCookie":
                     processedResult = this.deleteCookie(request);
+                    break;
+
+                case "getResourceTree":
+                    processedResult = this.getResourceTree(request);
                     break;
 
                 default:

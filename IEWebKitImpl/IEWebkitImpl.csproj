@@ -31,9 +31,7 @@
     <TypeScriptCompile Include="Page.ts" />
     <TypeScriptCompile Include="Runtime.ts" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="DOM\" />
-  </ItemGroup>
+  <ItemGroup />
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">12.0</VisualStudioVersion>
   </PropertyGroup>

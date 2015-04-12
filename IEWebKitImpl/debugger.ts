@@ -254,13 +254,6 @@ module F12.Proxy {
             if (request) {
                 var methodParts = request.method.split(".");
 
-                // This is a hack to get console in VS showing up so that it can work at a breakpoint
-                if (methodParts[0] === "Page" && methodParts[1] === "getResourceTree") {
-                    var r = JSON.parse('{"result":{"frameTree":{"frame":{"id":"1500.1","loaderId":"1500.2","url":"http://f12host/clock/","mimeType":"text/html","securityOrigin":"http://f12host"},"resources":[{ "url": "http://f12host/clock/imgs/clock1.jpg", "type": "Image", "mimeType": "image/jpeg" }, { "url": "http://f12host/clock/app.css", "type": "Stylesheet", "mimeType": "text/css" }, { "url": "http://f12host/clock/app.js", "type": "Script", "mimeType": "application/javascript" }, { "url": "http://f12host/clock/clock.js", "type": "Script", "mimeType": "application/javascript" }] } } }');
-                    this.PostResponse(request.id, r);
-                    return
-                }
-
                 if (!this._isAtBreakpoint && methodParts[0] !== "Debugger") {
                     return host.postMessageToEngine("browser", this._isAtBreakpoint, JSON.stringify(request));
                 }
@@ -398,7 +391,7 @@ module F12.Proxy {
                             result: this.GetRemoteObjectFromProp(prop)
                         }
                     }
-                     break;
+                    break;
 
                 case "getProperties":
                     var id = parseInt(request.params.objectId);
@@ -516,7 +509,7 @@ module F12.Proxy {
 
                 case "setBreakpointByUrl":
                     if (this._documentMap.has(request.params.url)) {
-                        try{
+                        try {
                             var docId: number = this._documentMap.get(request.params.url);
 
                             var lineEndings = this.GetLineEndings(docId);
@@ -536,13 +529,13 @@ module F12.Proxy {
                                     locations: [location]
                                 }
                             };
-                        
-                    } catch (ex) {
-                        this.PostResponse(0, {
-                            error: { description: "Invalid request" }
-                        });
-                        return;
-                    }
+
+                        } catch (ex) {
+                            this.PostResponse(0, {
+                                error: { description: "Invalid request" }
+                            });
+                            return;
+                        }
 
                     } else {
                         processedResult = {
