@@ -26,7 +26,7 @@
     <TypeScriptCompile Include="Common.ts" />
     <TypeScriptCompile Include="Debugger.ts" />
     <TypeScriptCompile Include="DOM.ts" />
-    <TypeScriptCompile Include="DiagnosticOM.d.ts" />
+    <TypeScriptCompile Include="IE11.DiagnosticOM.d.ts" />
     <TypeScriptCompile Include="Interfaces.d.ts" />
     <TypeScriptCompile Include="Page.ts" />
     <TypeScriptCompile Include="Runtime.ts" />

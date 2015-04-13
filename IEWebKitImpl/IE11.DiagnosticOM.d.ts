@@ -195,7 +195,6 @@ declare module DiagnosticsOM {
         deleteCookie(cookieName: string, domain: string): void;
         disableAll(): void;
         getAllCookies(): ICookieEntry[];
-        getAllCookiesByDomain(url: string): ICookieEntry[];
         setCookie(valueCookie: ICookieEntry): void;
     }
 
@@ -305,22 +304,6 @@ declare module DiagnosticsOM {
         /*get*/ functionName: string;
         /*get*/ line: number;
     }
-
-    /**
-     * The styleSheetAdded event provides an array of IStyleSheets with all properties.
-     * The styleSheetRemoved event provides an array of IStyleSheets with only uniqueId.
-     */
-    export interface IStyleSheet {
-        uniqueId: string;
-        parentId?: string;
-        url?: string;
-    }
-
-    export interface IDiagnosticsScript {
-        editSource(window: any, scriptId: number, sourceText: string): ISourceEdit;
-        debugEval(script: string, isNonUserCode: boolean): void;
-        getStackTrace(maxDepth: number): IFrame[];
-    }
 }
 
 declare var browser: DiagnosticsOM.IBrowser;
@@ -331,5 +314,3 @@ declare var emulation: DiagnosticsOM.IEmulation;
 // declare var external: DiagnosticsOM.IExternal;
 declare var resources: DiagnosticsOM.IResources;
 declare var styles: DiagnosticsOM.IStyles;
-
-declare var diagnosticsScript: DiagnosticsOM.IDiagnosticsScript;
