@@ -2,12 +2,10 @@
 // Copyright (C) Microsoft. All rights reserved.
 //
 
-
 /// <reference path="Interfaces.d.ts"/>
 /// <reference path="Common.ts"/>
 
-
-module F12.Proxy {
+module Proxy {
     "use strict";
 
     enum BreakResumeAction {
@@ -149,7 +147,7 @@ module F12.Proxy {
     }
 
     interface IProxyDebuggerDispatch extends IProxyDispatch {
-        postMessageToEngine(id: string, isAtBreakpoint: boolean, data: string);
+        postMessageToEngine(id: string, isAtBreakpoint: boolean, data: string): void;
     }
 
     interface IDebuggerDispatch {
@@ -219,7 +217,7 @@ module F12.Proxy {
         private _isEnabled: boolean;
         private _documentMap: Map<string, number>;
         private _lineEndingsMap: Map<number, number[]>;
-        private _firstrun;
+        private _firstrun: boolean;
 
         constructor() {
             this._debugger = debug;
@@ -244,7 +242,7 @@ module F12.Proxy {
             try {
                 request = <IWebKitRequest>JSON.parse(data);
             } catch (ex) {
-                this.PostResponse(0, {
+                this.postResponse(0, {
                     error: { description: "Invalid request" }
                 });
                 return;
@@ -254,23 +252,16 @@ module F12.Proxy {
             if (request) {
                 var methodParts = request.method.split(".");
 
-                // This is a hack to get console in VS showing up so that it can work at a breakpoint
-                if (methodParts[0] === "Page" && methodParts[1] === "getResourceTree") {
-                    var r = JSON.parse('{"result":{"frameTree":{"frame":{"id":"1500.1","loaderId":"1500.2","url":"http://f12host/clock/","mimeType":"text/html","securityOrigin":"http://f12host"},"resources":[{ "url": "http://f12host/clock/imgs/clock1.jpg", "type": "Image", "mimeType": "image/jpeg" }, { "url": "http://f12host/clock/app.css", "type": "Stylesheet", "mimeType": "text/css" }, { "url": "http://f12host/clock/app.js", "type": "Script", "mimeType": "application/javascript" }, { "url": "http://f12host/clock/clock.js", "type": "Script", "mimeType": "application/javascript" }] } } }');
-                    this.PostResponse(request.id, r);
-                    return
-                }
-
                 if (!this._isAtBreakpoint && methodParts[0] !== "Debugger") {
                     return host.postMessageToEngine("browser", this._isAtBreakpoint, JSON.stringify(request));
                 }
 
                 switch (methodParts[0]) {
                     case "Runtime":
-                        this.ProcessRuntime(methodParts[1], request);
+                        this.processRuntime(methodParts[1], request);
                         break;
                     case "Debugger":
-                        this.ProcessDebugger(methodParts[1], request);
+                        this.processDebugger(methodParts[1], request);
                         break;
                     default:
                         return host.postMessageToEngine("browser", this._isAtBreakpoint, JSON.stringify(request));
@@ -278,7 +269,7 @@ module F12.Proxy {
             }
         }
 
-        private GetLineEndings(docId: number, text?: string): number[] {
+        private getLineEndings(docId: number, text?: string): number[] {
             if (!this._lineEndingsMap.has(docId)) {
                 var textResult = text || this._debugger.getSourceText(docId).text;
                 if (textResult) {
@@ -297,8 +288,8 @@ module F12.Proxy {
             return this._lineEndingsMap.get(docId);
         }
 
-        private GetLineColumnFromOffset(docId: number, offset: number): any {
-            var lineEndings = this.GetLineEndings(docId);
+        private getLineColumnFromOffset(docId: number, offset: number): any {
+            var lineEndings = this.getLineEndings(docId);
 
             var columnNumber = 0;
             var lineNumber = 0;
@@ -315,10 +306,10 @@ module F12.Proxy {
             return { lineNumber: lineNumber, columnNumber: columnNumber, scriptId: "" + docId };
         }
 
-        private GetRemoteObjectFromProp(prop: IPropertyInfo): IWebKitPropResult {
+        private getRemoteObjectFromProp(prop: IPropertyInfo): IWebKitPropResult {
             var type = prop.type.toLowerCase();
             var subType = null;
-            var value;
+            var value: any;
             var index = type.indexOf(",");
             if (index !== -1) {
                 type = "object";
@@ -361,7 +352,7 @@ module F12.Proxy {
                 description: prop.value.toString()
             };
 
-            if (type == "object") {
+            if (type === "object") {
                 (<any>resultDesc).className = "Object";
                 (<any>resultDesc).subType = subType;
             }
@@ -372,22 +363,22 @@ module F12.Proxy {
             };
         }
 
-        private PostResponse(id: number, value: IWebKitResult): void {
+        private postResponse(id: number, value: IWebKitResult): void {
             // Send the response back over the websocket
-            var response: IWebKitResponse = Common.CreateResponse(id, value);
+            var response: IWebKitResponse = Common.createResponse(id, value);
             host.postMessage(JSON.stringify(response));
         }
 
-        private PostNotification(method: string, params: any): void {
+        private postNotification(method: string, params: any): void {
             var notification: IWebKitNotification = {
                 method: method,
                 params: params
-            }
+            };
 
             host.postMessage(JSON.stringify(notification));
         }
 
-        private ProcessRuntime(method: string, request: IWebKitRequest): void {
+        private processRuntime(method: string, request: IWebKitRequest): void {
             var processedResult: IWebKitResult;
 
             switch (method) {
@@ -395,10 +386,11 @@ module F12.Proxy {
                     var prop = debug.eval(request.params.contextId, request.params.expression);
                     if (prop) {
                         processedResult = {
-                            result: this.GetRemoteObjectFromProp(prop)
-                        }
+                            result: this.getRemoteObjectFromProp(prop)
+                        };
                     }
-                     break;
+
+                    break;
 
                 case "getProperties":
                     var id = parseInt(request.params.objectId);
@@ -410,7 +402,6 @@ module F12.Proxy {
                     for (var i = 0; i < props.propInfos.length; i++) {
                         var prop = props.propInfos[i];
                         if (!prop.fake) {
-
                             if (typeof viewAccessorOnly !== "undefined") {
                                 if (viewAccessorOnly && !prop.readOnly) {
                                     continue;
@@ -419,7 +410,7 @@ module F12.Proxy {
                                 }
                             }
 
-                            var remote = this.GetRemoteObjectFromProp(prop);
+                            var remote = this.getRemoteObjectFromProp(prop);
 
                             propDescriptions.push({
                                 name: prop.name,
@@ -433,7 +424,7 @@ module F12.Proxy {
                         result: {
                             result: propDescriptions
                         }
-                    }
+                    };
                     break;
 
                 default:
@@ -441,11 +432,11 @@ module F12.Proxy {
                     break;
             }
 
-            this.PostResponse(request.id, processedResult);
+            this.postResponse(request.id, processedResult);
 
             if (method === "enable") {
                 // Rundown the frames, now that we have been enabled
-                this.PostNotification("Runtime.executionContextCreated", {
+                this.postNotification("Runtime.executionContextCreated", {
                     context: {
                         frameId: "1500.1",
                         id: 1
@@ -454,7 +445,7 @@ module F12.Proxy {
             }
         }
 
-        private ProcessDebugger(method: string, request: IWebKitRequest): void {
+        private processDebugger(method: string, request: IWebKitRequest): void {
             var processedResult: IWebKitResult;
 
             switch (method) {
@@ -465,11 +456,11 @@ module F12.Proxy {
                     break;
 
                 case "disable":
-                    this.DebuggerResume(BreakResumeAction.Continue);
+                    this.debuggerResume(BreakResumeAction.Continue);
                     break;
 
                 case "enable":
-                    this.DebuggerEnable(request.id);
+                    this.debuggerEnable(request.id);
                     return;
 
                 case "evaluateOnCallFrame":
@@ -477,22 +468,23 @@ module F12.Proxy {
                     var prop = this._debugger.eval(frameId, request.params.expression);
 
                     processedResult = {
-                        result: this.GetRemoteObjectFromProp(prop)
+                        result: this.getRemoteObjectFromProp(prop)
                     };
 
                     break;
 
                 case "getScriptSource":
-                    var docId: number = parseInt(request.params.scriptId)
+                    var docId: number = parseInt(request.params.scriptId);
                     var textResult = this._debugger.getSourceText(docId);
                     if (!textResult.loadFailed) {
-                        this.GetLineEndings(docId, textResult.text);
+                        this.getLineEndings(docId, textResult.text);
                         processedResult = {
                             result: {
                                 scriptSource: " " + textResult.text
                             }
                         };
                     }
+
                     break;
 
                 case "pause":
@@ -505,7 +497,7 @@ module F12.Proxy {
                     break;
 
                 case "resume":
-                    this.DebuggerResume(BreakResumeAction.Continue);
+                    this.debuggerResume(BreakResumeAction.Continue);
                     break;
 
                 case "searchInContent":
@@ -516,31 +508,39 @@ module F12.Proxy {
 
                 case "setBreakpointByUrl":
                     if (this._documentMap.has(request.params.url)) {
-                        var docId: number = this._documentMap.get(request.params.url);
+                        try {
+                            var docId: number = this._documentMap.get(request.params.url);
 
-                        var lineEndings = this.GetLineEndings(docId);
+                            var lineEndings = this.getLineEndings(docId);
 
-                        var charCount = 0;
-                        for (var i = 0; i < request.params.lineNumber; i++) {
-                            charCount += lineEndings[i];
-                        }
-                        charCount += request.params.columnNumber;
-
-                        var info = this._debugger.addCodeBreakpoint(docId, charCount, request.params.condition, false);
-                        var location = this.GetLineColumnFromOffset(docId, info.location.start);
-
-                        processedResult = {
-                            result: {
-                                breakpointId: "" + info.breakpointId,
-                                locations: [location]
+                            var charCount = 0;
+                            for (var i = 0; i < request.params.lineNumber; i++) {
+                                charCount += lineEndings[i];
                             }
-                        };
 
+                            charCount += request.params.columnNumber;
+
+                            var info = this._debugger.addCodeBreakpoint(docId, charCount, request.params.condition, false);
+                            var location = this.getLineColumnFromOffset(docId, info.location.start);
+
+                            processedResult = {
+                                result: {
+                                    breakpointId: "" + info.breakpointId,
+                                    locations: [location]
+                                }
+                            };
+                        } catch (ex) {
+                            this.postResponse(0, {
+                                error: { description: "Invalid request" }
+                            });
+                            return;
+                        }
                     } else {
                         processedResult = {
                             error: { description: "Not implemented" }
                         };
                     }
+
                     break;
 
                 case "setBreakpointsActive":
@@ -553,15 +553,15 @@ module F12.Proxy {
                     break;
 
                 case "stepInto":
-                    this.DebuggerResume(BreakResumeAction.StepInto);
+                    this.debuggerResume(BreakResumeAction.StepInto);
                     break;
 
                 case "stepOut":
-                    this.DebuggerResume(BreakResumeAction.StepOut);
+                    this.debuggerResume(BreakResumeAction.StepOut);
                     break;
 
                 case "stepOver":
-                    this.DebuggerResume(BreakResumeAction.StepOver);
+                    this.debuggerResume(BreakResumeAction.StepOver);
                     break;
 
                 default:
@@ -573,10 +573,10 @@ module F12.Proxy {
                 processedResult = {};
             }
 
-            this.PostResponse(request.id, processedResult);
+            this.postResponse(request.id, processedResult);
         }
 
-        private DebuggerEnable(id: number): void {
+        private debuggerEnable(id: number): void {
             if (!this._isEnabled && !this._isAwaitingDebuggerEnableCall) {
                 var listener = (succeeded: boolean) => {
                     var connectionResult = (succeeded ? ConnectionResult.Succeeded : ConnectionResult.Failed);
@@ -592,7 +592,7 @@ module F12.Proxy {
                         }
                     }
 
-                    this.PostResponse(id, { result: connectionResult });
+                    this.postResponse(id, { result: connectionResult });
                 };
                 this._debugger.addEventListener("debuggingenabled", listener);
 
@@ -601,28 +601,27 @@ module F12.Proxy {
                 this._debugger.enable();
             } else {
                 // Already connected, so return success
-                this.PostResponse(id, { result: ConnectionResult.Succeeded });
+                this.postResponse(id, { result: ConnectionResult.Succeeded });
             }
         }
 
-        private DebuggerResume(action: BreakResumeAction): void {
+        private debuggerResume(action: BreakResumeAction): void {
             this._debugger.resume(action);
             this._isAtBreakpoint = false;
         }
 
         private onAddDocuments(documents: IDocument[]): void {
-
             if (this._firstrun) {
                 this._firstrun = false;
                 // This hack tells the Chrome dev tools that we are ready to receive console messages. This will be refactored when I get around to implementing the rest of console functionality
-                host.postMessage('{ "method": "Runtime.executionContextCreated", "params": { "context": { "id": 1, "isPageContext": true, "name": "", "origin": "", "frameId": "10700.1" } } }');
+                host.postMessage("{ \"method\": \"Runtime.executionContextCreated\", \"params\": { \"context\": { \"id\": 1, \"isPageContext\": true, \"name\": \"\", \"origin\": \"\", \"frameId\": \"10700.1\" } } }");
             }
 
             for (var i = 0; i < documents.length; i++) {
                 var document: IDocument = documents[i];
                 this._documentMap.set(document.url, document.docId);
 
-                this.PostNotification("Debugger.scriptParsed", {
+                this.postNotification("Debugger.scriptParsed", {
                     scriptId: "" + document.docId,
                     url: document.url,
                     startLine: 0,
@@ -681,24 +680,22 @@ module F12.Proxy {
                     }
                 }
 
-
                 callFrames.push({
                     callFrameId: "" + frames[i].callFrameId,
                     functionName: frames[i].functionName,
-                    location: this.GetLineColumnFromOffset(frames[i].location.docId, frames[i].location.start),
+                    location: this.getLineColumnFromOffset(frames[i].location.docId, frames[i].location.start),
                     scopeChain: scopes,
-                    "this": null
+                    this: null
                 });
             }
 
-            this.PostNotification("Debugger.paused", {
+            this.postNotification("Debugger.paused", {
                 callFrames: callFrames,
                 reason: "other",
                 data: null
             });
             return true;
         }
-
     }
 
     export class App {

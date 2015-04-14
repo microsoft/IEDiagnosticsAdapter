@@ -96,8 +96,8 @@ public:
         {
             hRes = E_FAIL;
             // Look in cache if
-            //	cache is populated
-            //	parameter names are not requested
+            // cache is populated
+            // parameter names are not requested
             if (m_pMap != NULL && cNames == 1)
             {
                 int n = int( ocslen(rgszNames[0]) );
@@ -237,7 +237,7 @@ inline HRESULT CComTypeInfoHolderLib::GetTI(_In_ LCID lcid)
         {
             ATLASSUME(!InlineIsEqualGUID(*m_plibid, GUID_NULL) && "Module LIBID not initialized. See DECLARE_LIBID documentation.");
             hRes = LoadRegTypeLib(*m_plibid, m_wMajor, m_wMinor, lcid, &pTypeLib);
-#ifdef _DEBUG			
+#ifdef _DEBUG
             if (SUCCEEDED(hRes))
             {
                 // Trace out an warning if the requested TypelibID is the same as the modules TypelibID
@@ -272,7 +272,7 @@ inline HRESULT CComTypeInfoHolderLib::GetTI(_In_ LCID lcid)
                                 pLibAttr->wMinorVerNum != m_wMinor))
                             {
                                 ATLTRACE(atlTraceCOM, 0, _T("Warning : CComTypeInfoHolderLib::GetTI : Loaded typelib does not match the typelib in the module : %s\n"), szFilePath);
-                                ATLTRACE(atlTraceCOM, 0, _T("\tSee IDispatchImpl overview help topic for more information\n"));							
+                                ATLTRACE(atlTraceCOM, 0, _T("\tSee IDispatchImpl overview help topic for more information\n"));
                             }
                             spTypeLibModule->ReleaseTLibAttr(pLibAttr);
                         }
@@ -285,7 +285,7 @@ inline HRESULT CComTypeInfoHolderLib::GetTI(_In_ LCID lcid)
                 ATLTRACE(atlTraceCOM, 0, _T("\tVerify TypelibID and major version specified with\n"));
                 ATLTRACE(atlTraceCOM, 0, _T("\tIDispatchImpl, CStockPropImpl, IProvideClassInfoImpl or IProvideCLassInfo2Impl\n"));
             }
-#endif		
+#endif
         }
         if (SUCCEEDED(hRes))
         {

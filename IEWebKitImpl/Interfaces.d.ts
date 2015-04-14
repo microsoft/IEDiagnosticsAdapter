@@ -2,20 +2,20 @@
 // Copyright (C) Microsoft. All rights reserved.
 //
 
-declare module F12.Proxy {
+declare module Proxy {
     enum NodeType {
-        ELEMENT_NODE = 1,
-        ATTRIBUTE_NODE = 2,
-        TEXT_NODE = 3,
-        CDATA_SECTION_NODE = 4,
-        ENTITY_REFERENCE_NODE = 5,
-        ENTITY_NODE = 6,
-        PROCESSING_INSTRUCTION_NODE = 7,
-        COMMENT_NODE = 8,
-        DOCUMENT_NODE = 9,
-        DOCUMENT_TYPE_NODE = 10,
-        DOCUMENT_FRAGMENT_NODE = 11,
-        NOTATION_NODE = 12,
+        ElementNode = 1,
+        AttributeNode = 2,
+        TextNode = 3,
+        CdataSectionNode = 4,
+        EntityReferenceNode = 5,
+        EntityNode = 6,
+        ProcessingInstructionNode = 7,
+        CommentNode = 8,
+        DocumentNode = 9,
+        DocumentTypeNode = 10,
+        DocumentFragmentNode = 11,
+        NotationNode = 12
     }
 
     //// DOM
@@ -38,7 +38,6 @@ declare module F12.Proxy {
         value?: string;
         xmlVersion?: string;
     }
-
 
     // WebKit Connection
     interface IMessageResponce {
@@ -77,22 +76,19 @@ declare module F12.Proxy {
         value: any;
     }
 
-    interface IBrowser {
-        addEventListener(eventType: string, callback: Function): void;
-        removeEventListener(eventType: string, callback: Function): void;
-        /*get*/ browserMode: string;
-        /*get*/ defaultDocumentMode: number;
-        /*get*/ document: HTMLDocument;
-        /*get*/ documentMode: number;
-        elementSelectionEventsEnabled: boolean;
-        forceEdgeModeDocumentFamily: boolean;
-        workerStartupScript: string;
+    interface IWebKitCookie {
+        name: string;
+        value: string;
+        domain: string;
+        path: string;
+        expires: string;
+        size: number;
+        httpOnly: boolean;
+        secure: boolean;
+        session: boolean;
+    }
 
-        createSafeFunction(targetOM: any, func: Function): Function;
-        executeScript(code: string, targetFrame?: any): any;
-        highlightElement(elementOrNull: Element, marginColor: string, borderColor: string, paddingColor: string, contentColor: string): void;
-        refresh(): void;
-        takeVisualSnapshot(width?: number, height?: number, keepAspectRatio?: boolean): Blob;
-        enumerateStyleSheets(): void;
+    interface IDomainHandler {
+        processMessage(method: string, request: IWebKitRequest): void;
     }
 } 

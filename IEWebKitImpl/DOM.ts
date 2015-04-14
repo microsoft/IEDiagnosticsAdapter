@@ -3,17 +3,18 @@
 //
 
 /// <reference path="Interfaces.d.ts"/>
+/// <reference path="IE11.DiagnosticOM.d.ts" />
 /// <reference path="Browser.ts"/>
 
-module F12.Proxy {
+module Proxy {
     "use strict";
 
-    declare var browser: IBrowser;
-    export class DOMHandler {
+    declare var browser: DiagnosticsOM.IBrowser;
+    export class DOMHandler implements IDomainHandler {
         private _mapUidToNode: Map<number, Node>;
         private _mapNodeToUid: WeakMap<Node, number>;
         private _nextAvailableUid: number;
-        private _windowExternal: any; //todo: Make an appropriate TS interface for external
+        private _windowExternal: any; // todo: Make an appropriate TS interface for external
         private _elementHighlightColor: any;
 
         constructor() {
@@ -29,29 +30,28 @@ module F12.Proxy {
             };
         }
 
-        private createChromeNodeFromIENode(node: Node): INode {
-            var iNode: INode = {
-                nodeId: this.getOrAssignUid(node),
-                nodeType: node.nodeType,
-                nodeName: node.nodeName,
-                localName: browser.document.localName || "",
-                nodeValue: browser.document.nodeValue || "",
+        public processMessage(method: string, request: IWebKitRequest): void {
+            var processedResult: IWebKitResult;
 
-            };
-
-            if (node.childNodes.length > 0) {
-                iNode.childNodeCount = node.childNodes.length;
+            switch (method) {
+                case "getDocument":
+                    processedResult = this.getDocument();
+                    break;
+                case "hideHighlight":
+                    processedResult = this.hideHighlight();
+                    break;
+                case "highlightNode":
+                    processedResult = this.highlightNode(request);
+                    break;
+                case "requestChildNodes":
+                    processedResult = this.requestChildNodes(request);
+                    break;
+                default:
+                    processedResult = null;
+                    break;
             }
 
-            if (node.attributes) {
-                iNode.attributes = [];
-                for (var i = 0; i < node.attributes.length; i++) {
-                    iNode.attributes.push(node.attributes[i].name);
-                    iNode.attributes.push(node.attributes[i].value);
-                }
-            }
-
-            return iNode;
+            browserHandler.postResponse(request.id, processedResult);
         }
 
         public getOrAssignUid(node: Node): number {
@@ -74,29 +74,53 @@ module F12.Proxy {
             return uid;
         }
 
+        private createChromeNodeFromIENode(node: Node): INode {
+            var iNode: INode = {
+                nodeId: this.getOrAssignUid(node),
+                nodeType: node.nodeType,
+                nodeName: node.nodeName,
+                localName: browser.document.localName || "",
+                nodeValue: browser.document.nodeValue || ""
+            };
+
+            if (node.childNodes.length > 0) {
+                iNode.childNodeCount = node.childNodes.length;
+            }
+
+            if (node.attributes) {
+                iNode.attributes = [];
+                for (var i = 0; i < node.attributes.length; i++) {
+                    iNode.attributes.push(node.attributes[i].name);
+                    iNode.attributes.push(node.attributes[i].value);
+                }
+            }
+
+            return iNode;
+        }
+
          /**
           * Does the same thing as createChromeNodeFromIENode but also recursively converts child nodes. 
           */
         private createChromeNodeFromIENodeRecursive(ieNode: Node): INode {
-            //todo: add depth limitation
-
+            // todo: add depth limitation
             var chromeNode: INode = this.createChromeNodeFromIENode(ieNode);
             if (!chromeNode.children && chromeNode.childNodeCount > 0) {
                 chromeNode.children = [];
             }
 
             for (var i = 0; i < ieNode.childNodes.length; i++) {
-                if (ieNode.childNodes[i].nodeType === NodeType.ELEMENT_NODE) {
+                if (ieNode.childNodes[i].nodeType === NodeType.ElementNode) {
                     chromeNode.children.push(this.createChromeNodeFromIENodeRecursive(ieNode.childNodes[i]));
                 }
             }
+
             return chromeNode;
         }
 
         private setChildNodes(id: number): any {
             var ieNode: Node = this._mapUidToNode.get(id);
             var chromeNode = this.createChromeNodeFromIENode(ieNode);
-            var nodeArray: INode[] = []
+            var nodeArray: INode[] = [];
             for (var i = 0; i < ieNode.childNodes.length; i++) {
                 nodeArray.push(this.createChromeNodeFromIENodeRecursive(ieNode.childNodes[i]));
             }
@@ -135,7 +159,7 @@ module F12.Proxy {
             }
 
             for (var i = 0; i < browser.document.childNodes.length; i++) {
-                if (browser.document.childNodes[i].nodeType === NodeType.ELEMENT_NODE) {
+                if (browser.document.childNodes[i].nodeType === NodeType.ElementNode) {
                     document.children.push(this.createChromeNodeFromIENodeRecursive(browser.document.childNodes[i]));
                 }
             }
@@ -155,53 +179,31 @@ module F12.Proxy {
 
         private highlightNode(request: IWebKitRequest): IWebKitResult {
             var element_to_highlight: Node = this._mapUidToNode.get(request.params.nodeId);
-            while (element_to_highlight && element_to_highlight.nodeType != NodeType.ELEMENT_NODE) {
+            while (element_to_highlight && element_to_highlight.nodeType !== NodeType.ElementNode) {
                 element_to_highlight = element_to_highlight.parentNode;
             }
+
             if (element_to_highlight) {
                 try {
                     browser.highlightElement((<Element>element_to_highlight), this._elementHighlightColor.margin, this._elementHighlightColor.border, this._elementHighlightColor.padding, this._elementHighlightColor.content);
                 } catch (e) {
                     // todo: I have no idea why this randomly fails when you give it the head node, but it does
                 }
-                return {}
+
+                return {};
             } else {
                 var processedResult: any = {};
-                processedResult.error = "could not find element"; //todo find official error
+                processedResult.error = "could not find element"; // todo find official error
                 return processedResult;
             }
-
-
         }
+
         private requestChildNodes(request: IWebKitRequest): IWebKitResult {
             if (request.params && request.params.nodeId) {
                 this.setChildNodes(request.params.nodeId);
             }
+
             return {};
-        }
-
-        public ProcessDOM(method: string, request: IWebKitRequest): void {
-            var processedResult;
-
-            switch (method) {
-                case "getDocument":
-                    processedResult = this.getDocument();
-                    break;
-                case "hideHighlight":
-                    processedResult = this.hideHighlight();
-                    break;
-                case "highlightNode":
-                    processedResult = this.highlightNode(request);
-                    break;
-                case "requestChildNodes":
-                    processedResult = this.requestChildNodes(request);
-                    break;
-                default:
-                    processedResult = {};
-                    break;
-            }
-
-            browserHandler.PostResponse(request.id, processedResult);
         }
     }
 
