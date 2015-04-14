@@ -3,53 +3,50 @@
 //
 
 /// <reference path="Interfaces.d.ts"/>
-/// <reference path="DiagnosticOM.d.ts" />
-/// <reference path="DOM.ts"/>
-/// <reference path="page.ts" />
-/// <reference path="runtime.ts" />
+/// <reference path="IE11.DiagnosticOM.d.ts" />
 
 module F12.Proxy {
     "use strict";
 
-    declare var host: any; //todo: create some interface for host
-    declare var request: any; //todo: create some interface for request
+    declare var host: any; // todo: create some interface for host
+    declare var request: any; // todo: create some interface for request
 
     declare var browser: DiagnosticsOM.IBrowser;
     export class BrowserHandler {
-        private windowExternal: any; //todo: Make an appropriate TS interface for external
+        private _windowExternal: any; // todo: Make an appropriate TS interface for external
 
         constructor() {
-            this.windowExternal = (<any>external);
-            this.windowExternal.addEventListener("message", (e: any) => this.messageHandler(e));
+            this._windowExternal = (<any>external);
+            this._windowExternal.addEventListener("message", (e: any) => this.messageHandler(e));
+        }
+
+        public postResponse(id: number, value: IWebKitResult): void {
+            // Send the response back over the websocket
+            var response: IWebKitResponse = Common.createResponse(id, value);
+            this._windowExternal.sendMessage("postMessage", JSON.stringify(response));
         }
 
         private alert(message: string): void {
-            this.windowExternal.sendMessage("alert", message);
+            this._windowExternal.sendMessage("alert", message);
         }
 
-        private PostNotification(method: string, params: any) {
+        private postNotification(method: string, params: any): void {
             var notification = {
                 method: method,
                 params: params
-            }
+            };
 
-            this.windowExternal.sendMessage("postMessage", JSON.stringify(notification)); //todo: should this be postMessage?
+            this._windowExternal.sendMessage("postMessage", JSON.stringify(notification)); // todo: should this be postMessage?
         }
 
-        public PostResponse(id: number, value: IWebKitResult) {
-            // Send the response back over the websocket
-            var response: IWebKitResponse = Common.CreateResponse(id, value);
-            this.windowExternal.sendMessage("postMessage", JSON.stringify(response));
-        }
-
-        private messageHandler(e: any) {
+        private messageHandler(e: any): void {
             if (e.id === "onmessage") {
                 // Try to parse the requested command
                 var request = null;
                 try {
                     request = JSON.parse(e.data);
                 } catch (ex) {
-                    this.PostResponse(0, {
+                    this.postResponse(0, {
                         error: { description: "Invalid request" }
                     });
                     return;
@@ -60,7 +57,6 @@ module F12.Proxy {
                     var methodParts = request.method.split(".");
 
                     // browser.document.parentWindow.alert(e.data);
-
                     switch (methodParts[0]) {
                         case "Runtime":
                             runtimeHandler.processMessage(methodParts[1], request);
@@ -75,12 +71,12 @@ module F12.Proxy {
                             break;
 
                         default:
-                            this.PostResponse(request.id, {});
+                            this.postResponse(request.id, {});
                             break;
                     }
                 }
             } else if (e.id === "onnavigation") {
-                this.PostNotification("Page.frameNavigated", {
+                this.postNotification("Page.frameNavigated", {
                     frame: {
                         id: "1500.1",
                         url: browser.document.location.href,

@@ -1,5 +1,5 @@
 ﻿//
-//! Copyright (C) Microsoft. All rights reserved.
+// Copyright (C) Microsoft. All rights reserved.
 //
 
 declare module DiagnosticsOM {

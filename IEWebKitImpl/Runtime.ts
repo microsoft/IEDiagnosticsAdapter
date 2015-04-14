@@ -2,24 +2,22 @@
 // Copyright (C) Microsoft. All rights reserved.
 //
 
-/// <reference path="DiagnosticOM.d.ts" />
+/// <reference path="IE11.DiagnosticOM.d.ts" />
 /// <reference path="Interfaces.d.ts"/>
 
 /// Proxy to hande the page domain of the Chrome remote debug protocol 
 module F12.Proxy {
     export class RuntimeHandler implements IDomainHandler {
-
         constructor() {
-
         }
 
-        public processMessage(method: string, request: IWebKitRequest) {
-            var processedResult;
+        public processMessage(method: string, request: IWebKitRequest): void {
+            var processedResult: IWebKitResult;
 
             switch (method) {
                 case "evaluate":
                 case "callFunctionOn":
-                    var resultFromEval = undefined;
+                    var resultFromEval: any;
                     var wasThrown = false;
 
                     if (method === "evaluate" && request.params.expression) {
@@ -30,7 +28,6 @@ module F12.Proxy {
                             resultFromEval = e;
                             wasThrown = true;
                         }
-
                     } else if (method === "callFunctionOn" && request.params.functionDeclaration) {
                         var args = [];
                         if (request.params.arguments) {
@@ -58,7 +55,7 @@ module F12.Proxy {
                     if (resultFromEval && typeof resultFromEval === "object") {
                         id = "1";
                         description = "Object";
-                        value = undefined;
+                        value = null;
                     }
 
                     var resultDesc = {
@@ -78,13 +75,12 @@ module F12.Proxy {
                     break;
 
                 default:
-                    processedResult = {};
+                    processedResult = null;
                     break;
             }
 
-            browserHandler.PostResponse(request.id, processedResult);
+            browserHandler.postResponse(request.id, processedResult);
         }
-
     }
 
     export var runtimeHandler: RuntimeHandler = new RuntimeHandler();

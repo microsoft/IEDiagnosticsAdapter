@@ -2,8 +2,10 @@
 // Copyright (C) Microsoft. All rights reserved.
 //
 
-/// <reference path="DiagnosticOM.d.ts" />
+/// <reference path="IE11.DiagnosticOM.d.ts" />
 /// <reference path="Interfaces.d.ts"/>
+/// <reference path="Browser.ts"/>
+
 
 /// Proxy to hande the page domain of the Chrome remote debug protocol 
 module F12.Proxy {
@@ -29,12 +31,14 @@ module F12.Proxy {
             } else {
                 this.expires = msCookie.expires && msCookie.expires.toString() || "unknown";
             }
+
             if (msCookie) {
                 // Rough approximation of size as IE doesn't report the actual size
                 this.size = msCookie.name.length + msCookie.value.length;
             } else {
                 this.size = 0;
             }
+
             this.httpOnly = msCookie && msCookie.httpOnly || false;
             this.secure = msCookie && msCookie.secure || false;
             this.session = msCookie && msCookie.session || false;
@@ -43,7 +47,34 @@ module F12.Proxy {
 
     export class PageHandler implements IDomainHandler {
         constructor() {
+        }
 
+        public processMessage(method: string, request: IWebKitRequest): void {
+            var processedResult: IWebKitResponse;
+
+            switch (method) {
+                case "navigate":
+                    processedResult = this.navigate(request);
+                    break;
+
+                case "getCookies":
+                    processedResult = this.getCookies();
+                    break;
+
+                case "deleteCookie":
+                    processedResult = this.deleteCookie(request);
+                    break;
+
+                case "getResourceTree":
+                    processedResult = this.getResourceTree(request);
+                    break;
+
+                default:
+                    processedResult = null;
+                    break;
+            }
+
+            browserHandler.postResponse(request.id, processedResult);
         }
 
         private getCookies(): IWebKitResponse {
@@ -139,34 +170,7 @@ module F12.Proxy {
 
             return processedResult;
         }
-
-        public processMessage(method: string, request: IWebKitRequest) {
-            var processedResult;
-
-            switch (method) {
-                case "navigate":
-                    processedResult = this.navigate(request);
-                    break;
-
-                case "getCookies":
-                    processedResult = this.getCookies();
-                    break;
-
-                case "deleteCookie":
-                    processedResult = this.deleteCookie(request);
-                    break;
-
-                case "getResourceTree":
-                    processedResult = this.getResourceTree(request);
-                    break;
-
-                default:
-                    processedResult = {};
-                    break;
-            }
-
-            browserHandler.PostResponse(request.id, processedResult);
-        }
     }
+
     export var pageHandler: PageHandler = new PageHandler();
 }

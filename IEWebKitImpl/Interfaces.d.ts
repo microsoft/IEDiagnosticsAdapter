@@ -4,18 +4,18 @@
 
 declare module F12.Proxy {
     enum NodeType {
-        ELEMENT_NODE = 1,
-        ATTRIBUTE_NODE = 2,
-        TEXT_NODE = 3,
-        CDATA_SECTION_NODE = 4,
-        ENTITY_REFERENCE_NODE = 5,
-        ENTITY_NODE = 6,
-        PROCESSING_INSTRUCTION_NODE = 7,
-        COMMENT_NODE = 8,
-        DOCUMENT_NODE = 9,
-        DOCUMENT_TYPE_NODE = 10,
-        DOCUMENT_FRAGMENT_NODE = 11,
-        NOTATION_NODE = 12,
+        ElementNode = 1,
+        AttributeNode = 2,
+        TextNode = 3,
+        CdataSectionNode = 4,
+        EntityReferenceNode = 5,
+        EntityNode = 6,
+        ProcessingInstructionNode = 7,
+        CommentNode = 8,
+        DocumentNode = 9,
+        DocumentTypeNode = 10,
+        DocumentFragmentNode = 11,
+        NotationNode = 12
     }
 
     //// DOM
@@ -38,7 +38,6 @@ declare module F12.Proxy {
         value?: string;
         xmlVersion?: string;
     }
-
 
     // WebKit Connection
     interface IMessageResponce {
@@ -90,6 +89,6 @@ declare module F12.Proxy {
     }
 
     interface IDomainHandler {
-        processMessage(method:string, request: IWebKitRequest): void;
+        processMessage(method: string, request: IWebKitRequest): void;
     }
 } 
