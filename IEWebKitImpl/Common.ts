@@ -4,7 +4,7 @@
 
 /// <reference path="Interfaces.d.ts"/>
 
-module F12.Proxy {
+module Proxy {
     "use strict";
     export class Common {
         public static createResponse(id: number, value: IWebKitResult): IWebKitResponse {

@@ -6,7 +6,7 @@
 /// <reference path="IE11.DiagnosticOM.d.ts" />
 /// <reference path="Browser.ts"/>
 
-module F12.Proxy {
+module Proxy {
     "use strict";
 
     declare var browser: DiagnosticsOM.IBrowser;

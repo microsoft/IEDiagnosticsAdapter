@@ -5,7 +5,7 @@
 /// <reference path="Interfaces.d.ts"/>
 /// <reference path="Common.ts"/>
 
-module F12.Proxy {
+module Proxy {
     "use strict";
 
     enum BreakResumeAction {

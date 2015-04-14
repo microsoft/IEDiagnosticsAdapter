@@ -8,7 +8,7 @@
 
 
 /// Proxy to hande the page domain of the Chrome remote debug protocol 
-module F12.Proxy {
+module Proxy {
     export class WebkitCookie implements IWebKitCookie {
         public name: string;
         public value: string;

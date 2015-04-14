@@ -2,7 +2,7 @@
 // Copyright (C) Microsoft. All rights reserved.
 //
 
-declare module F12.Proxy {
+declare module Proxy {
     enum NodeType {
         ElementNode = 1,
         AttributeNode = 2,

@@ -5,7 +5,7 @@
 /// <reference path="Interfaces.d.ts"/>
 /// <reference path="IE11.DiagnosticOM.d.ts" />
 
-module F12.Proxy {
+module Proxy {
     "use strict";
 
     declare var host: any; // todo: create some interface for host
