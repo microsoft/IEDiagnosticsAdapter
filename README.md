@@ -6,13 +6,11 @@ IE Diagnostics Adapter is a proxy that enables tools to debug and diagnose IE us
 https://github.com/Microsoft/IEDiagnosticsAdapter/releases/tag/v0.1.3
 
 ## Installing
-Simply download and unpack a release on to your hard drive.
+Simply download a release on to your hard drive.
 
 1. Download the current release
 2. Copy into a folder on disk where you wish to run the file from e.g. `%HOMEPATH%\Desktop`
-3. Extract the files
-4. Delete the zip file
-5. If you plan to use this tool against IE in *Enhanced Protected Mode* (note, this includes 64 bit machines), 
+3. If you plan to use this tool against IE in *Enhanced Protected Mode* (note, this includes 64 bit machines), 
     If you're on Windows 8 or later, navigate to the directory containing **Proxy.dll** and type `icacls proxy.dll /grant "ALL APPLICATION PACKAGES":(RX)` in an Administrator Command Prompt to grant necessary permissions. 
     If you're on Windows 7, we are currently blocked by issue [#9](https://github.com/Microsoft/IEDiagnosticsAdapter/issues/9).
 
