@@ -73,7 +73,7 @@
   <PropertyGroup>
     <OutDir>$(SolutionDir)Output\$(Configuration)\$(Platform)\</OutDir>
     <IntDir>$(SolutionDir)Output\Intermediate\$(ProjectName)\$(Configuration)\$(Platform)\</IntDir>
-  </PropertyGroup>  
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -162,6 +162,7 @@
     <ClInclude Include="IEDiagnosticsAdapter.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="WebSocketHandler.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="IEDiagnosticsAdapter.cpp" />
@@ -169,6 +170,7 @@
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="WebSocketHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Resource.rc" />

@@ -466,10 +466,11 @@ module Proxy {
                 case "evaluateOnCallFrame":
                     var frameId = parseInt(request.params.callFrameId);
                     var prop = this._debugger.eval(frameId, request.params.expression);
-
-                    processedResult = {
-                        result: this.getRemoteObjectFromProp(prop)
-                    };
+                    if (prop) {
+                        processedResult = {
+                            result: this.getRemoteObjectFromProp(prop)
+                        };
+                    }
 
                     break;
 

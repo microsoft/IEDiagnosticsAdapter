@@ -15,13 +15,14 @@ module Proxy {
             if (!value) {
                 response.error = new Error("No response specified");
             }
+            else {
+                if (value.error) {
+                    response.error = value.error;
+                }
 
-            if (value.error) {
-                response.error = value.error;
-            }
-
-            if (value.result) {
-                response.result = value.result;
+                if (value.result) {
+                    response.result = value.result;
+                }
             }
 
             return response;
