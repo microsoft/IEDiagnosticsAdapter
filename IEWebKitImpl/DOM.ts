@@ -177,6 +177,71 @@ module Proxy {
             return {};
         }
 
+        private searchRuleListForStyleObject(ruleList: any, style: CSSStyleDeclaration): any {
+            var rule: any;
+            for (var i = 0; i < ruleList.length; i++) {
+                rule = ruleList[i];
+                if (rule.cssRules) {
+                    rule = this.searchRuleListForStyleObject(rule.cssRules, style);
+                    if (rule) {
+                        return rule;
+                    }
+                } else if (rule.style === style) {
+                    return rule;
+                }
+            }
+
+            return null;
+        }
+
+        private searchStyleSheetForStyleObject(sheets: StyleSheetList, style: CSSStyleDeclaration): CSSStyleRule {
+            for (var i = 0; i < sheets.length; i++) {
+                var sheet = <CSSStyleSheet>sheets[i];
+                try {
+                    // Use standard CSS OM if available, otherwise fall back to legacy CSS OM
+                    var rules = sheet.cssRules ? sheet.cssRules : sheet.rules;
+                    var rule: CSSStyleRule;
+                    if (rules) {
+                        rule = this.searchRuleListForStyleObject(rules, style);
+                        if (rule) {
+                            return rule;
+                        }
+                    }
+
+                    if (sheet.imports && sheet.imports.length) {
+                        rule = this.searchStyleSheetForStyleObject(sheet.imports, style);
+                        if (rule) {
+                            return rule;
+                        }
+                    }
+                } catch (ex) {
+                    // If the rule references a file that does not exist (or cannot be accessed), sheet.rules will throw an exception
+                    // todo: add an error to our response 
+                }
+            }
+
+            return null;
+        }
+
+        private getStyleRules(element: HTMLElement): CSSStyleRule[] {
+            var styleRules = <CSSStyleRule[]>[];
+            diagnostics.styles.calculateTracedStyles(element);
+            var appliedStyles = diagnostics.styles.getTracedStyles(element).getAppliedStyles();
+
+            // The rules are given by the API in winningest first order. To render CSS, we need the reverse.
+            for (var i = appliedStyles.length - 1; i >= 0; i--) {
+                var styleRule = this.searchStyleSheetForStyleObject(element.ownerDocument.styleSheets, appliedStyles[i]);
+                // Inline styles have no parentRule, so we skip them by checking styleRule.
+                // They are already captured by copying the attributes above.
+                if (styleRule) {
+                    styleRules.push(styleRule);
+                }
+            }
+
+            return styleRules;
+        }
+
+
         private highlightNode(request: IWebKitRequest): IWebKitResult {
             var element_to_highlight: Node = this._mapUidToNode.get(request.params.nodeId);
             while (element_to_highlight && element_to_highlight.nodeType !== NodeType.ElementNode) {
