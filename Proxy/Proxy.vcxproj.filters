@@ -53,13 +53,7 @@
     <ClCompile Include="ScriptEngineHost.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\Output\Published\$(Configuration)\DebuggerCore_i.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="dllmain.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Output\Published\$(Configuration)\Proxy_i.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ProxySite.cpp">
@@ -75,6 +69,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="BrowserMessageQueue.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Output\Published\$(Configuration)\$(Platform)\Proxy_i.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Output\Published\$(Configuration)\$(Platform)\DebuggerCore_i.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

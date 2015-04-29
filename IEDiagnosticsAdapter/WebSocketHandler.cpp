@@ -8,6 +8,7 @@
 #include "Helpers.h"
 #include "resource.h"
 #include "Strsafe.h"
+#include <VersionHelpers.h>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <Psapi.h>
 
@@ -240,12 +241,17 @@ HRESULT WebSocketHandler::PopulateIEInstances()
                     CHandle handle(::OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processId));
                     if (handle)
                     {
+                        BOOL temp = FALSE;
+                        bool is64bitOS = (::IsWow64Process(::GetCurrentProcess(), &temp) && temp);
+                        temp = FALSE;
+                        bool is64bitTab = is64bitOS && !(::IsWow64Process(handle, &temp) && temp);
+
                         DWORD bufferSize = MAX_PATH;
                         DWORD count = ::GetModuleFileNameEx(handle, nullptr, filePath.GetBuffer(bufferSize), bufferSize);
                         filePath.ReleaseBufferSetLength(count);
-                    }
 
-                    current[hwnd] = IEInstance(guid, processId, hwnd, url, title, filePath);
+                        current[hwnd] = IEInstance(guid, processId, hwnd, url, title, filePath, is64bitTab);
+                    }
                 }
             }
 
@@ -327,11 +333,32 @@ HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
     if (hr == S_OK)
     {
         CString path(m_rootPath);
-        path.Append(L"Proxy.dll");
+
+        if (instance.is64BitTab)
+        {
+            #ifdef NDEBUG
+                std::cout << "DEBUG MESSAGE: Attempting to attach to 64 bit tab" << std::endl;
+            #endif
+            path.Append(L"Proxy64.dll");
+        }
+        else
+        {
+            path.Append(L"Proxy.dll");
+        }
 
         CComPtr<IOleWindow> spSite;
         hr = Helpers::StartDiagnosticsMode(spDocument, __uuidof(ProxySite), path, __uuidof(spSite), reinterpret_cast<void**>(&spSite.p));
-        if (hr == S_OK)
+        if (hr == E_ACCESSDENIED && instance.is64BitTab && ::IsWindows8Point1OrGreater())
+        {
+            std::cout << "ERROR: Access denied while attempting to connect to a 64 bit tab. The most common solution to this problem is to open an Administrator command prompt, navigate to the folder containing this adapter, and type \"icacls proxy64.dll /grant \"ALL APPLICATION PACKAGES\":(RX)\"" << std::endl;
+        }
+        else if (hr == ::HRESULT_FROM_WIN32(ERROR_MOD_NOT_FOUND) && instance.is64BitTab) {
+            std::cout << "ERROR: Module could not be found. Ensure Proxy64.dll is in the same folder as IEDiagnosticsAdaptor.exe" << std::endl;
+        }
+        else if (hr == ::HRESULT_FROM_WIN32(ERROR_MOD_NOT_FOUND) && !instance.is64BitTab) {
+            std::cout << "ERROR: Module could not be found. Ensure Proxy.dll is in the same folder as IEDiagnosticsAdaptor.exe" << std::endl;
+        }
+        else if (hr == S_OK)
         {
             HWND hwnd;
             hr = spSite->GetWindow(&hwnd);

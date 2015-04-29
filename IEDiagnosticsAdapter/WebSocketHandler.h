@@ -22,14 +22,16 @@ struct IEInstance
     bool isConnected;
     CComPtr<IOleWindow> spSite;
     HWND connectionHwnd;
+    bool is64BitTab;
 
-    IEInstance(UUID guid, DWORD processId, HWND hwnd, LPCWSTR url, LPCWSTR title, LPCWSTR filePath) :
+    IEInstance(UUID guid, DWORD processId, HWND hwnd, LPCWSTR url, LPCWSTR title, LPCWSTR filePath, BOOL is64BitTab) :
         guid(guid),
         processId(processId),
         hwnd(hwnd),
         url(url),
         title(title),
         filePath(filePath),
+        is64BitTab(is64BitTab),
         isConnected(false),
         connectionHwnd(0)
     {
