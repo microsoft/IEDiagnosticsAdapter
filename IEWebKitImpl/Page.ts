@@ -50,7 +50,7 @@ module Proxy {
         }
 
         public processMessage(method: string, request: IWebKitRequest): void {
-            var processedResult: IWebKitResponse;
+            var processedResult: IWebKitResult;
 
             switch (method) {
                 case "navigate":
@@ -68,7 +68,12 @@ module Proxy {
                 case "getResourceTree":
                     processedResult = this.getResourceTree(request);
                     break;
-
+                case "canScreencast":
+                    processedResult = { result: false };
+                    break;
+                case "canEmulate":
+                    processedResult = { result: false };
+                    break;
                 default:
                     processedResult = null;
                     break;

@@ -20,7 +20,7 @@ module Proxy {
                     response.error = value.error;
                 }
 
-                if (value.result) {
+                if (value.result !== undefined && value.result !== null) { 
                     response.result = value.result;
                 }
             }
