@@ -7,6 +7,7 @@
 #include "Helpers.h"
 #include <iostream>
 #include <Shellapi.h>
+#include <Shlobj.h>
 
 CHandle hChromeProcess;
 
@@ -33,29 +34,30 @@ int wmain(int argc, wchar_t* argv[])
             CString chromePath;
 
             // Find the chrome install location via the registry
-            CString keyPath;
-            keyPath.Format(L"SOFTWARE\\%sMicrosoft\\Windows\\CurrentVersion\\Uninstall\\Google Chrome", (Helpers::Is64OS() ? L"Wow6432Node\\" : L""));
+            CString keyPath = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe";
 
             CRegKey regKey;
+
+            // First see if we can find where Chrome is installed from the registry. This will only succeed if Chrome is installed for all users
             if (regKey.Open(HKEY_LOCAL_MACHINE, keyPath, KEY_READ) == ERROR_SUCCESS)
             {
                 ULONG bufferSize = MAX_PATH;
                 CString path;
-                LRESULT result = regKey.QueryStringValue(L"InstallLocation", path.GetBufferSetLength(bufferSize), &bufferSize);
+                LRESULT result = regKey.QueryStringValue(nullptr, path.GetBufferSetLength(bufferSize), &bufferSize);
                 path.ReleaseBufferSetLength(bufferSize);
                 if (result == ERROR_SUCCESS)
                 {
-                    chromePath.Format(L"%s\\chrome.exe", path);
+                    chromePath = path;
                 }
             }
 
             if (chromePath.GetLength() == 0)
             {
-                // Default to program files instead
-                CString progFiles;
-                Helpers::ExpandEnvironmentString((Helpers::Is64OS() ? L"%ProgramFiles(x86)%" : L"%ProgramFiles%"), progFiles);
-
-                chromePath.Format(L"%s\\Google\\Chrome\\Application\\chrome.exe", progFiles);
+                // If Chrome is only installed for the current user, look in \AppData\Local\Google\Chrome\Application\ for Chrome.exe
+                CString appPath;
+                ::SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA, NULL, SHGFP_TYPE_CURRENT, appPath.GetBuffer(MAX_PATH + 1));
+                appPath.ReleaseBuffer();
+                chromePath = appPath + L"\\Google\\Chrome\\Application\\chrome.exe";
             }
 
             // Get a temp location
@@ -91,6 +93,12 @@ int wmain(int argc, wchar_t* argv[])
                 CHandle hThread(pi.hThread);
                 hChromeProcess.Attach(pi.hProcess);
                 DWORD waitResult = ::WaitForInputIdle(hChromeProcess, 30000);
+            }
+            else
+            {
+                std::cerr << "Could not open Chrome. Please ensure that Chrome is installed." << std::endl;
+                system("pause");
+                return -1;
             }
         }
         

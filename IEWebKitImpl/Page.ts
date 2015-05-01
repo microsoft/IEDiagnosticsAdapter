@@ -68,12 +68,15 @@ module Proxy {
                 case "getResourceTree":
                     processedResult = this.getResourceTree(request);
                     break;
+
                 case "canScreencast":
                     processedResult = { result: false };
                     break;
+
                 case "canEmulate":
                     processedResult = { result: false };
                     break;
+
                 default:
                     processedResult = null;
                     break;

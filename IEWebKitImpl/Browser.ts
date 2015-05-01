@@ -71,7 +71,7 @@ module Proxy {
                             break;
                         case "Worker":
                             if (methodParts[1] === "canInspectWorkers") {
-                                var processedResult: IWebKitResult = { result: false};
+                                var processedResult: IWebKitResult = { result: false };
                                 browserHandler.postResponse(request.id, processedResult);
                             }
                             break;
