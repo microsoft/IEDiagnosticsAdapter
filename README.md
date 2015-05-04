@@ -3,7 +3,7 @@ IE Diagnostics Adapter is a proxy that enables tools to debug and diagnose IE us
 
 ### Current Release
 
-https://github.com/Microsoft/IEDiagnosticsAdapter/releases/tag/v0.1.3
+https://github.com/Microsoft/IEDiagnosticsAdapter/releases/tag/v0.1.4
 
 ## Installing
 Simply download a release on to your hard drive.
