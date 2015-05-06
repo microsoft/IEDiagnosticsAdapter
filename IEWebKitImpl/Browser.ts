@@ -67,14 +67,18 @@ module Proxy {
                             break;
 
                         case "DOM":
+                        case "CSS":
                             domHandler.processMessage(methodParts[1], request);
                             break;
+
                         case "Worker":
                             if (methodParts[1] === "canInspectWorkers") {
                                 var processedResult: IWebKitResult = { result: false };
                                 browserHandler.postResponse(request.id, processedResult);
                             }
+
                             break;
+
                         default:
                             this.postResponse(request.id, {});
                             break;

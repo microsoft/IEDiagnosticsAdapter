@@ -16,12 +16,18 @@ module Proxy {
         private _nextAvailableUid: number;
         private _windowExternal: any; // todo: Make an appropriate TS interface for external
         private _elementHighlightColor: any;
+        private _nextAvailableStyleSheetUid: number;
+        private _sentCSS: boolean; // todo: find a better way to send this
+        private _mapStyleSheetToStyleSheetID: WeakMap<StyleSheet, number>;
 
         constructor() {
             this._mapUidToNode = new Map<number, Node>();
             this._mapNodeToUid = new WeakMap<Node, number>();
+            this._mapStyleSheetToStyleSheetID = new WeakMap<StyleSheet, number>();
             this._nextAvailableUid = 2; // 1 is reserved for the root
+            this._nextAvailableStyleSheetUid = 1;
             this._windowExternal = (<any>external);
+            this._sentCSS = false;
             this._elementHighlightColor = {
                 margin: "rgba(250, 212, 107, 0.50)",
                 border: "rgba(120, 181, 51, 0.50)",
@@ -32,29 +38,199 @@ module Proxy {
 
         public processMessage(method: string, request: IWebKitRequest): void {
             var processedResult: IWebKitResult;
-
             switch (method) {
                 case "getDocument":
                     processedResult = this.getDocument();
                     break;
+
                 case "hideHighlight":
+                    // Chrome dev tools never requests CSS files, but always sends "hideHighlight" command around when it expects to get the CSS files.
+                    // this hack will do until we implement a better way to post events.
+                    if (!this._sentCSS) {
+                        this._sentCSS = true;
+                        this.styleSheetAdded();
+                    }
+
                     processedResult = this.hideHighlight();
                     break;
+
                 case "highlightNode":
                     processedResult = this.highlightNode(request);
                     break;
+
                 case "requestChildNodes":
                     processedResult = this.requestChildNodes(request);
                     break;
+
+                case "getInlineStylesForNode":
+                    // todo: Implement this function
+                    break;
+
+                case "getMatchedStylesForNode":
+                    processedResult = this.getMatchedStylesForNode(request);
+                    break;
+
+                case "getComputedStyleForNode":
+                    // todo: Implement this function
+                    break;
+
                 default:
-                    processedResult = null;
+                    processedResult = {};
+                    processedResult.result = {};
                     break;
             }
 
             browserHandler.postResponse(request.id, processedResult);
         }
 
-        public getOrAssignUid(node: Node): number {
+        private styleSheetAdded(): void {
+            for (var i = 0; i < browser.document.styleSheets.length; i++) {
+                var styleSheet: StyleSheet = browser.document.styleSheets[i];
+                var ownerid = this._mapNodeToUid.get(styleSheet.ownerNode);
+                var ssID = this._nextAvailableStyleSheetUid++;
+                var sourceURL = styleSheet.href;
+                var disabled = styleSheet.disabled;
+
+                this._mapStyleSheetToStyleSheetID.set(styleSheet, ssID);
+
+                var response: any = {};
+                response.method = "CSS.styleSheetAdded";
+                response.params = {};
+                response.params.header = {};
+                response.params.header.styleSheetId = "" + ssID;
+                response.params.header.origin = "regular"; // todo: see if there is a way to get this data from IE
+                response.params.header.disabled = disabled;
+                response.params.header.sourceURL = sourceURL;
+                response.params.header.title = styleSheet.title;
+                response.params.header.frameId = "1500.1"; // todo: add support for Iframes
+                response.params.header.isInline = "false"; // todo: see if there is a way to get this data from IE
+                response.params.header.startLine = "0";
+                response.params.header.startColumn = "0";
+                response.params.header.ownerNode = "" + ownerid;
+
+                (<any>external).sendMessage("postMessage", JSON.stringify(response));
+            }
+        }
+
+        private getJsonFromRule(rule: CSSStyleRule): any {
+            var parsedStyleList: DiagnosticsOM.IStylePropertyList = diagnostics.styles.getParsedPropertyList(rule.style);
+            var sourceLoc: DiagnosticsOM.ISourceLocation = diagnostics.styles.getSourceLocation(rule.style);
+
+            // Chrome expects different range for selector and properties, and the start+end location for both
+            // IE only gives us the start of location of the selector so this is a best approximation
+            var rangeObj = { startLine: sourceLoc.line, startColumn: sourceLoc.column, endLine: sourceLoc.line + 1, endColumn: 0 };
+
+            var json_rule: any = {};
+            json_rule.rule = {};
+            json_rule.rule.selectorList = {};
+            json_rule.rule.selectorList.selectors = [({ value: rule.selectorText, range: rangeObj })];
+            json_rule.rule.selectorList.text = rule.selectorText;
+            json_rule.rule.origin = "regular";
+            json_rule.rule.style = {};
+            if (parsedStyleList.length > 0) {
+                json_rule.rule.style.cssProperties = [];
+                for (var i = 0; i < parsedStyleList.length; i++) {
+                    json_rule.rule.style.cssProperties.push({ name: parsedStyleList[i].propertyName, value: parsedStyleList[i].value });
+                    json_rule.rule.style.cssProperties[i].text = rule.style.cssText;
+                    json_rule.rule.style.cssProperties[i].range = rangeObj;
+                    json_rule.rule.style.cssProperties[i].implicit = false; // todo: see if there is a way to get this data from IE
+                    json_rule.rule.style.cssProperties[i].disabled = false; // todo: see if there is a way to get this data from IE
+                }
+            }
+
+            json_rule.rule.style.shorthandEntries = []; // todo: see if there is a way to get this data from IE
+            json_rule.rule.style.styleSheetId = "" + this._mapStyleSheetToStyleSheetID.get(rule.parentStyleSheet);
+            json_rule.rule.style.range = rangeObj;
+            json_rule.rule.style.cssText = rule.style.cssText;
+            json_rule.rule.styleSheetId = "" + this._mapStyleSheetToStyleSheetID.get(rule.parentStyleSheet);
+            json_rule.matchingSelectors = [0]; // todo: see if there is a way to get this data from IE
+            return json_rule;
+        }
+
+        // getInheritanceChain API only returns a partial inheritence chain containing only nodes that have styles attached to them. 
+        // The chrome debugger requires you return an empty "matchedCSSRules" node for elements that do not have styles attached
+        // so that it can properly determine where inherited styles came from. This builds the InheritanceChain and inserts 
+        // null elements to represent an emlement with no CSS rules.
+        private calculateInheritanceChain(htmlElement: HTMLElement): HTMLElement[] {
+            diagnostics.styles.calculateTracedStyles(htmlElement);
+            var partialChain: HTMLElement[] = diagnostics.styles.getTracedStyles(htmlElement).getInheritanceChain();
+            var traceNode: Node = htmlElement.parentElement;
+            var fullChain: HTMLElement[] = [];
+            var i: number = 0;
+            while (i < partialChain.length) {
+                if (partialChain[i] === htmlElement) {
+                    i++;
+                    continue;
+                }
+
+                if (traceNode === partialChain[i]) {
+                    fullChain.push(partialChain[i++]);
+                } else {
+                    fullChain.push(null);
+                }
+
+                traceNode = traceNode.parentNode;
+            }
+
+            return fullChain;
+        }
+
+        // todo: Implement excludePseudo, and excludeInherited arguments
+        private getMatchedStylesForNode(request: IWebKitRequest): IWebKitResult {
+            var node: Node = this._mapUidToNode.get(request.params.nodeId);
+            var processedResult: any = {};
+            var rulesEncountered: CSSStyleRule[] = [];
+
+            if (node && node.nodeType === NodeType.ElementNode) {
+                var htmlElement: HTMLElement = <HTMLElement>node;
+                var styleRules: CSSStyleRule[] = this.getStyleRules(htmlElement);
+
+                // first find the styles that are directly applied to this htmlElement.
+                processedResult.result = {};
+                processedResult.result.matchedCSSRules = [];
+                for (var j = 0; j < styleRules.length; j++) {
+                    var rule: CSSStyleRule = styleRules[j];
+                    if (rulesEncountered.indexOf(rule) < 0) {
+                        rulesEncountered.push(rule);
+                        processedResult.result.matchedCSSRules[j] = this.getJsonFromRule(rule);
+                    }
+                }
+
+                processedResult.result.pseudoElements = []; // todo: see if there is a way to get this data from IE
+
+                // Now find all the inherited styles on htmlElement
+                processedResult.result.inherited = [];
+                var chain: HTMLElement[] = this.calculateInheritanceChain(htmlElement);
+
+                for (var i = 0; i < chain.length; i++) {
+                    var traceElement: HTMLElement = chain[i];
+                    processedResult.result.inherited.push({ matchedCSSRules: [] });
+
+                    if (traceElement === null) {
+                        // a null element in the chain indicates that the element has no styles attached to it.
+                        // Looking for styles on this element will find styles inherited from parent elements, which
+                        // will cause the chrome dev tools to incorrectly display where a style is inherited from.
+                        continue;
+                    }
+
+                    var styleRules: CSSStyleRule[] = this.getStyleRules(traceElement);
+                    for (var j = 0; j < styleRules.length; j++) {
+                        var rule: CSSStyleRule = styleRules[j];
+                        if (rulesEncountered.indexOf(rule) < 0) {
+                            rulesEncountered.push(rule);
+                            processedResult.result.inherited[processedResult.result.inherited.length - 1].matchedCSSRules.push(this.getJsonFromRule(rule));
+                        }
+                    }
+                }
+
+                return processedResult;
+            } else {
+                processedResult.error = "could not find element"; // todo find official error
+                return processedResult;
+            }
+        }
+
+        private getOrAssignUid(node: Node): number {
             if (!node) {
                 throw new Error("invalid node");
             }
@@ -79,12 +255,13 @@ module Proxy {
                 nodeId: this.getOrAssignUid(node),
                 nodeType: node.nodeType,
                 nodeName: node.nodeName,
-                localName: browser.document.localName || "",
-                nodeValue: browser.document.nodeValue || ""
+                localName: node.localName || "",
+                nodeValue: node.nodeValue || ""
             };
 
-            if (node.childNodes.length > 0) {
-                iNode.childNodeCount = node.childNodes.length;
+            if (node.nodeType === NodeType.DocumentTypeNode) {
+                iNode.publicId = (<DocumentType>node).publicId || "";
+                iNode.systemId = (<DocumentType>node).systemId || "";
             }
 
             if (node.attributes) {
@@ -98,35 +275,59 @@ module Proxy {
             return iNode;
         }
 
-         /**
-          * Does the same thing as createChromeNodeFromIENode but also recursively converts child nodes. 
-          */
-        private createChromeNodeFromIENodeRecursive(ieNode: Node): INode {
-            // todo: add depth limitation
+        /**
+         * Does the same thing as createChromeNodeFromIENode but also recursively converts child nodes. 
+         */
+        private createChromeNodeFromIENodeRecursive(ieNode: Node, depth: number): INode {
             var chromeNode: INode = this.createChromeNodeFromIENode(ieNode);
-            if (!chromeNode.children && chromeNode.childNodeCount > 0) {
-                chromeNode.children = [];
+
+            if (this.numberOfNonWhitespaceChildNodes(ieNode) > 0) {
+                chromeNode.childNodeCount = this.numberOfNonWhitespaceChildNodes(ieNode);
             }
 
-            for (var i = 0; i < ieNode.childNodes.length; i++) {
-                if (ieNode.childNodes[i].nodeType === NodeType.ElementNode) {
-                    chromeNode.children.push(this.createChromeNodeFromIENodeRecursive(ieNode.childNodes[i]));
+            if (depth > 0) {
+                if (!chromeNode.children && chromeNode.childNodeCount > 0) {
+                    chromeNode.children = [];
+                }
+
+                for (var i = 0; i < ieNode.childNodes.length; i++) {
+                    if (!this.isWhitespaceNode(ieNode.childNodes[i])) {
+                        chromeNode.children.push(this.createChromeNodeFromIENodeRecursive(ieNode.childNodes[i], depth - 1));
+                    }
                 }
             }
 
             return chromeNode;
         }
 
+        private isWhitespaceNode(node: Node): boolean {
+            return (node.nodeType === NodeType.TextNode && node.nodeValue.trim() === "");
+        }
+
+        private numberOfNonWhitespaceChildNodes(node: Node): number {
+            var nonWhitespaceChildNodes = 0;
+            for (var i = 0; i < node.childNodes.length; i++) {
+                if (!this.isWhitespaceNode(node.childNodes[i])) {
+                    nonWhitespaceChildNodes++;
+                }
+            }
+
+            return nonWhitespaceChildNodes;
+        }
+
         private setChildNodes(id: number): any {
             var ieNode: Node = this._mapUidToNode.get(id);
-            var chromeNode = this.createChromeNodeFromIENode(ieNode);
             var nodeArray: INode[] = [];
+
+            // loop over all nodes, ignoring whitespace nodes
             for (var i = 0; i < ieNode.childNodes.length; i++) {
-                nodeArray.push(this.createChromeNodeFromIENodeRecursive(ieNode.childNodes[i]));
+                if (!this.isWhitespaceNode(ieNode.childNodes[i])) {
+                    nodeArray.push(this.createChromeNodeFromIENodeRecursive(ieNode.childNodes[i], 1));
+                }
             }
 
             // Send the response back over the websocket
-            var response: any = {}; // todo add a type for this. It has no id so its not an IWebKitResponse
+            var response: any = {}; // todo add a type for this. It has no id so it's not an IWebKitResponse
             response.method = "DOM.setChildNodes";
             response.params = {};
             response.params.parentId = id;
@@ -153,14 +354,16 @@ module Proxy {
                 this._mapNodeToUid.set(browser.document, 1);
             }
 
-            if (browser.document.childNodes.length > 0) {
-                document.childNodeCount = browser.document.childNodes.length;
+            var validChildren: number = this.numberOfNonWhitespaceChildNodes(browser.document);
+
+            if (validChildren > 0) {
+                document.childNodeCount = validChildren;
                 document.children = [];
             }
 
             for (var i = 0; i < browser.document.childNodes.length; i++) {
-                if (browser.document.childNodes[i].nodeType === NodeType.ElementNode) {
-                    document.children.push(this.createChromeNodeFromIENodeRecursive(browser.document.childNodes[i]));
+                if (!this.isWhitespaceNode(browser.document.childNodes[i])) {
+                    document.children.push(this.createChromeNodeFromIENodeRecursive(browser.document.childNodes[i], 1));
                 }
             }
 
@@ -240,7 +443,6 @@ module Proxy {
 
             return styleRules;
         }
-
 
         private highlightNode(request: IWebKitRequest): IWebKitResult {
             var element_to_highlight: Node = this._mapUidToNode.get(request.params.nodeId);

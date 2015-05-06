@@ -6,8 +6,7 @@
 /// <reference path="Interfaces.d.ts"/>
 /// <reference path="Browser.ts"/>
 
-
-/// Proxy to hande the page domain of the Chrome remote debug protocol 
+/// Proxy to handle the page domain of the Chrome remote debug protocol 
 module Proxy {
     export class WebkitCookie implements IWebKitCookie {
         public name: string;
@@ -53,6 +52,10 @@ module Proxy {
             var processedResult: IWebKitResult;
 
             switch (method) {
+                case "enable":
+                    processedResult = { result: { } };
+                    break;
+
                 case "navigate":
                     processedResult = this.navigate(request);
                     break;
@@ -75,6 +78,14 @@ module Proxy {
 
                 case "canEmulate":
                     processedResult = { result: false };
+                    break;
+
+                case "setShowViewportSizeOnResize":
+                    processedResult = { result: { } };
+                    break;
+
+                case "getAnimationsPlaybackRate":
+                    processedResult = { result: { playbackRate: 1 } };
                     break;
 
                 default:

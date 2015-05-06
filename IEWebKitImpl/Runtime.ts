@@ -15,6 +15,10 @@ module Proxy {
             var processedResult: IWebKitResult;
 
             switch (method) {
+                case "enable":
+                    processedResult = { result: {} };
+                    break;
+
                 case "evaluate":
                 case "callFunctionOn":
                     var resultFromEval: any;
