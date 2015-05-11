@@ -71,7 +71,7 @@ module Proxy {
                     break;
 
                 case "getComputedStyleForNode":
-                    // todo: Implement this function
+                    processedResult = this.getComputedStyleForNode(request);
                     break;
 
                 default:
@@ -175,59 +175,93 @@ module Proxy {
             return fullChain;
         }
 
+        private getComputedStyleForNode(request: IWebKitRequest): IWebKitResult {
+            var processedResult: IWebKitResult = {};
+            var node: Node = this._mapUidToNode.get(request.params.nodeId);
+            if (!node || node.nodeType !== NodeType.ElementNode) {
+                processedResult.error = "could not find element"; // todo: find official error
+                return processedResult;
+            }
+
+            var htmlElement: HTMLElement = <HTMLElement>node;
+            var doc: Document = htmlElement.ownerDocument;
+            if (!doc) {
+                processedResult.error = "could not find ownerDocument for node"; // todo: find official error
+                return processedResult;
+            }
+
+            var window: Window;
+            if (typeof doc.defaultView !== "undefined") {
+                window = doc.defaultView;
+            } else {
+                window = doc.parentWindow;
+            }
+
+            var computedStyles: CSSStyleDeclaration = window.getComputedStyle(htmlElement);
+
+            processedResult.result = {};
+            processedResult.result.computedStyle = [];
+            for (var i = 0; i < computedStyles.length; i++) {
+                var propertyName = computedStyles[i];
+                var propertyValue = computedStyles.getPropertyValue(propertyName);
+                processedResult.result.computedStyle.push({ name: propertyName, value: propertyValue });
+            }
+
+            return processedResult;
+        }
+
         // todo: Implement excludePseudo, and excludeInherited arguments
         private getMatchedStylesForNode(request: IWebKitRequest): IWebKitResult {
             var node: Node = this._mapUidToNode.get(request.params.nodeId);
-            var processedResult: any = {};
+            var processedResult: IWebKitResult = {};
             var rulesEncountered: CSSStyleRule[] = [];
+            if (!node || node.nodeType !== NodeType.ElementNode) {
+                processedResult.error = "could not find element"; // todo find official error
+                return processedResult;
+            }
 
-            if (node && node.nodeType === NodeType.ElementNode) {
-                var htmlElement: HTMLElement = <HTMLElement>node;
-                var styleRules: CSSStyleRule[] = this.getStyleRules(htmlElement);
+            var htmlElement: HTMLElement = <HTMLElement>node;
+            var styleRules: CSSStyleRule[] = this.getStyleRules(htmlElement);
 
-                // first find the styles that are directly applied to this htmlElement.
-                processedResult.result = {};
-                processedResult.result.matchedCSSRules = [];
+            // first find the styles that are directly applied to this htmlElement.
+            processedResult.result = {};
+            processedResult.result.matchedCSSRules = [];
+            for (var j = 0; j < styleRules.length; j++) {
+                var rule: CSSStyleRule = styleRules[j];
+                if (rulesEncountered.indexOf(rule) < 0) {
+                    rulesEncountered.push(rule);
+                    processedResult.result.matchedCSSRules[j] = this.getJsonFromRule(rule);
+                }
+            }
+
+            processedResult.result.pseudoElements = []; // todo: see if there is a way to get this data from IE
+
+            // Now find all the inherited styles on htmlElement
+            processedResult.result.inherited = [];
+            var chain: HTMLElement[] = this.calculateInheritanceChain(htmlElement);
+
+            for (var i = 0; i < chain.length; i++) {
+                var traceElement: HTMLElement = chain[i];
+                processedResult.result.inherited.push({ matchedCSSRules: [] });
+
+                if (traceElement === null) {
+                    // a null element in the chain indicates that the element has no styles attached to it.
+                    // Looking for styles on this element will find styles inherited from parent elements, which
+                    // will cause the chrome dev tools to incorrectly display where a style is inherited from.
+                    continue;
+                }
+
+                var styleRules: CSSStyleRule[] = this.getStyleRules(traceElement);
                 for (var j = 0; j < styleRules.length; j++) {
                     var rule: CSSStyleRule = styleRules[j];
                     if (rulesEncountered.indexOf(rule) < 0) {
                         rulesEncountered.push(rule);
-                        processedResult.result.matchedCSSRules[j] = this.getJsonFromRule(rule);
+                        processedResult.result.inherited[processedResult.result.inherited.length - 1].matchedCSSRules.push(this.getJsonFromRule(rule));
                     }
                 }
-
-                processedResult.result.pseudoElements = []; // todo: see if there is a way to get this data from IE
-
-                // Now find all the inherited styles on htmlElement
-                processedResult.result.inherited = [];
-                var chain: HTMLElement[] = this.calculateInheritanceChain(htmlElement);
-
-                for (var i = 0; i < chain.length; i++) {
-                    var traceElement: HTMLElement = chain[i];
-                    processedResult.result.inherited.push({ matchedCSSRules: [] });
-
-                    if (traceElement === null) {
-                        // a null element in the chain indicates that the element has no styles attached to it.
-                        // Looking for styles on this element will find styles inherited from parent elements, which
-                        // will cause the chrome dev tools to incorrectly display where a style is inherited from.
-                        continue;
-                    }
-
-                    var styleRules: CSSStyleRule[] = this.getStyleRules(traceElement);
-                    for (var j = 0; j < styleRules.length; j++) {
-                        var rule: CSSStyleRule = styleRules[j];
-                        if (rulesEncountered.indexOf(rule) < 0) {
-                            rulesEncountered.push(rule);
-                            processedResult.result.inherited[processedResult.result.inherited.length - 1].matchedCSSRules.push(this.getJsonFromRule(rule));
-                        }
-                    }
-                }
-
-                return processedResult;
-            } else {
-                processedResult.error = "could not find element"; // todo find official error
-                return processedResult;
             }
+
+            return processedResult;
         }
 
         private getOrAssignUid(node: Node): number {
@@ -459,7 +493,7 @@ module Proxy {
 
                 return {};
             } else {
-                var processedResult: any = {};
+                var processedResult: IWebKitResult = {};
                 processedResult.error = "could not find element"; // todo find official error
                 return processedResult;
             }

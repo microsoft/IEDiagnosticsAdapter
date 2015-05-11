@@ -96,8 +96,8 @@ module Proxy {
             browserHandler.postResponse(request.id, processedResult);
         }
 
-        private getCookies(): IWebKitResponse {
-            var processedResult: any = {};
+        private getCookies(): IWebKitResult {
+            var processedResult: IWebKitResult = {};
             var webkitCookies: Array<WebkitCookie> = new Array<WebkitCookie>();
 
             try {
@@ -120,8 +120,8 @@ module Proxy {
             return processedResult;
         }
 
-        private deleteCookie(request: IWebKitRequest): IWebKitResponse {
-            var processedResult: any = {};
+        private deleteCookie(request: IWebKitRequest): IWebKitResult {
+            var processedResult: IWebKitResult = {};
             var cookieName: string = request.params.cookieName;
             var url: string = request.params.url;
 
@@ -136,8 +136,8 @@ module Proxy {
             return processedResult;
         }
 
-        private navigate(request: IWebKitRequest): IWebKitResponse {
-            var processedResult: any = {};
+        private navigate(request: IWebKitRequest): IWebKitResult {
+            var processedResult: IWebKitResult = {};
 
             try {
                 if (request.params.url) {
@@ -158,8 +158,8 @@ module Proxy {
             return processedResult;
         }
 
-        private getResourceTree(request: IWebKitRequest): IWebKitResponse {
-            var processedResult: any = {};
+        private getResourceTree(request: IWebKitRequest): IWebKitResult {
+            var processedResult: IWebKitResult = {};
 
             try {
                 var url = browser.document.parentWindow.location.href;
