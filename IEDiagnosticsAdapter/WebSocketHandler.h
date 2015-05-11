@@ -31,7 +31,7 @@ struct IEInstance
         url(url),
         title(title),
         filePath(filePath),
-        is64BitTab(is64BitTab != 0),
+        is64BitTab(!!is64BitTab),
         isConnected(false),
         connectionHwnd(0)
     {

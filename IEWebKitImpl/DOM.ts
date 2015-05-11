@@ -230,7 +230,7 @@ module Proxy {
                 var rule: CSSStyleRule = styleRules[j];
                 if (rulesEncountered.indexOf(rule) < 0) {
                     rulesEncountered.push(rule);
-                    processedResult.result.matchedCSSRules[j] = this.getJsonFromRule(rule);
+                    processedResult.result.matchedCSSRules.push(this.getJsonFromRule(rule));
                 }
             }
 
