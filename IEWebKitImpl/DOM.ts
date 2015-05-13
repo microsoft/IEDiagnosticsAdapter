@@ -19,6 +19,9 @@ module Proxy {
         private _nextAvailableStyleSheetUid: number;
         private _sentCSS: boolean; // todo: find a better way to send this
         private _mapStyleSheetToStyleSheetID: WeakMap<StyleSheet, number>;
+        private _inspectModeEnabled: boolean;
+        private _selectElementHandler: (event:Event) => void;
+        private _hoverElementHandler: (event: Event) => void;
 
         constructor() {
             this._mapUidToNode = new Map<number, Node>();
@@ -28,11 +31,22 @@ module Proxy {
             this._nextAvailableStyleSheetUid = 1;
             this._windowExternal = (<any>external);
             this._sentCSS = false;
+            this._inspectModeEnabled = false;
             this._elementHighlightColor = {
                 margin: "rgba(250, 212, 107, 0.50)",
                 border: "rgba(120, 181, 51, 0.50)",
                 padding: "rgba(247, 163, 135, 0.50)",
                 content: "rgba(168, 221, 246, 0.50)"
+            };
+
+            this._selectElementHandler = (event: Event) => {
+                this.selectElementHandler(event);
+            };
+
+            this._hoverElementHandler = (event: Event) => {
+                if (event.target) {
+                    this.highlightNode(<Element>event.target);
+                }
             };
         }
 
@@ -55,7 +69,11 @@ module Proxy {
                     break;
 
                 case "highlightNode":
-                    processedResult = this.highlightNode(request);
+                    processedResult = this.handleHighlightNodeRequest(request);
+                    break;
+
+                case "setInspectModeEnabled":
+                    processedResult = this.setInspectModeEnabled(request);
                     break;
 
                 case "requestChildNodes":
@@ -83,10 +101,85 @@ module Proxy {
             browserHandler.postResponse(request.id, processedResult);
         }
 
+        private getNodeUid(node: Node): number {
+            if (!node) {
+                throw new Error("invalid node");
+            }
+
+            if (node === browser.document) {
+                return 1;
+            }
+
+            var uid: number;
+            if (this._mapNodeToUid.has(node)) {
+                return this._mapNodeToUid.get(node);
+            }
+
+            uid = this._nextAvailableUid++;
+            this._mapUidToNode.set(uid, node);
+            this._mapNodeToUid.set(node, uid);
+            return uid;
+        }
+
+        private getNode(nodeUID: number): Node {
+            if (!this._mapUidToNode.has(nodeUID)) {
+                throw Error("Could not find node with UID " + nodeUID);
+            }
+
+            return this._mapUidToNode.get(nodeUID);
+        }
+
+        private selectElementHandler(event: Event): void {
+            var target: Element = <Element>event.target;
+            if (target) {
+                this.highlightNode(target);
+            }
+
+            var chain: Node[] = [];
+            var curentElt: Node = target;
+
+            // expand the dom up to the selected node, starting from the closest parent the Chrome Dev Tools knows about
+            while (curentElt.parentNode && !this._mapNodeToUid.has(curentElt)) {
+                chain.push(curentElt);
+                curentElt = curentElt.parentNode;
+            }
+
+            chain.push(curentElt);
+            while (chain.length > 0) {
+                this.setChildNodes(this.getNodeUid(chain.pop()));
+            }
+
+            var response: any = {
+                method: "DOM.inspectNodeRequested",
+                params: {
+                    nodeId: this.getNodeUid(target)
+                }
+            };
+
+            this._windowExternal.sendMessage("postMessage", JSON.stringify(response));
+        }
+
+        private setInspectModeEnabled(request: IWebKitRequest): IWebKitResult {
+            if (request.params.enabled && !this._inspectModeEnabled) {
+                this._inspectModeEnabled = true;
+                diagnostics.browser.elementSelectionEventsEnabled = true;
+                browser.addEventListener("selectElement", this._selectElementHandler);
+                browser.addEventListener("hoverElement", this._hoverElementHandler);
+            } else if (!request.params.enabled && this._inspectModeEnabled) {
+                this._inspectModeEnabled = false;
+                diagnostics.browser.elementSelectionEventsEnabled = false;
+                browser.removeEventListener("selectElement", this._selectElementHandler);
+                browser.removeEventListener("hoverElement", this._hoverElementHandler);
+            }
+
+            var processedResult: IWebKitResult = { result: {} };
+            return processedResult;
+        }
+
         private styleSheetAdded(): void {
             for (var i = 0; i < browser.document.styleSheets.length; i++) {
                 var styleSheet: StyleSheet = browser.document.styleSheets[i];
-                var ownerid = this._mapNodeToUid.get(styleSheet.ownerNode);
+                var ownerid = this.getNodeUid(styleSheet.ownerNode);
                 var ssID = this._nextAvailableStyleSheetUid++;
                 var sourceURL = styleSheet.href;
                 var disabled = styleSheet.disabled;
@@ -177,7 +270,7 @@ module Proxy {
 
         private getComputedStyleForNode(request: IWebKitRequest): IWebKitResult {
             var processedResult: IWebKitResult = {};
-            var node: Node = this._mapUidToNode.get(request.params.nodeId);
+            var node: Node = this.getNode(request.params.nodeId);
             if (!node || node.nodeType !== NodeType.ElementNode) {
                 processedResult.error = "could not find element"; // todo: find official error
                 return processedResult;
@@ -185,16 +278,10 @@ module Proxy {
 
             var htmlElement: HTMLElement = <HTMLElement>node;
             var doc: Document = htmlElement.ownerDocument;
-            if (!doc) {
-                processedResult.error = "could not find ownerDocument for node"; // todo: find official error
+            var window: Window = this.getDefaultView(doc);
+            if (!window) {
+                processedResult.error = "could not find view for node"; // todo: find official error
                 return processedResult;
-            }
-
-            var window: Window;
-            if (typeof doc.defaultView !== "undefined") {
-                window = doc.defaultView;
-            } else {
-                window = doc.parentWindow;
             }
 
             var computedStyles: CSSStyleDeclaration = window.getComputedStyle(htmlElement);
@@ -212,7 +299,7 @@ module Proxy {
 
         // todo: Implement excludePseudo, and excludeInherited arguments
         private getMatchedStylesForNode(request: IWebKitRequest): IWebKitResult {
-            var node: Node = this._mapUidToNode.get(request.params.nodeId);
+            var node: Node = this.getNode(request.params.nodeId);
             var processedResult: IWebKitResult = {};
             var rulesEncountered: CSSStyleRule[] = [];
             if (!node || node.nodeType !== NodeType.ElementNode) {
@@ -264,29 +351,9 @@ module Proxy {
             return processedResult;
         }
 
-        private getOrAssignUid(node: Node): number {
-            if (!node) {
-                throw new Error("invalid node");
-            }
-
-            if (node === browser.document) {
-                return 1;
-            }
-
-            var uid: number;
-            if (this._mapNodeToUid.has(node)) {
-                return this._mapNodeToUid.get(node);
-            }
-
-            uid = this._nextAvailableUid++;
-            this._mapUidToNode.set(uid, node);
-            this._mapNodeToUid.set(node, uid);
-            return uid;
-        }
-
         private createChromeNodeFromIENode(node: Node): INode {
             var iNode: INode = {
-                nodeId: this.getOrAssignUid(node),
+                nodeId: this.getNodeUid(node),
                 nodeType: node.nodeType,
                 nodeName: node.nodeName,
                 localName: node.localName || "",
@@ -350,7 +417,7 @@ module Proxy {
         }
 
         private setChildNodes(id: number): any {
-            var ieNode: Node = this._mapUidToNode.get(id);
+            var ieNode: Node = this.getNode(id);
             var nodeArray: INode[] = [];
 
             // loop over all nodes, ignoring whitespace nodes
@@ -478,25 +545,35 @@ module Proxy {
             return styleRules;
         }
 
-        private highlightNode(request: IWebKitRequest): IWebKitResult {
-            var element_to_highlight: Node = this._mapUidToNode.get(request.params.nodeId);
-            while (element_to_highlight && element_to_highlight.nodeType !== NodeType.ElementNode) {
-                element_to_highlight = element_to_highlight.parentNode;
+        private highlightNode(elementToHighlight: Node): Boolean {
+            while (elementToHighlight && elementToHighlight.nodeType !== NodeType.ElementNode) {
+                elementToHighlight = elementToHighlight.parentNode;
             }
 
-            if (element_to_highlight) {
-                try {
-                    browser.highlightElement((<Element>element_to_highlight), this._elementHighlightColor.margin, this._elementHighlightColor.border, this._elementHighlightColor.padding, this._elementHighlightColor.content);
-                } catch (e) {
-                    // todo: I have no idea why this randomly fails when you give it the head node, but it does
-                }
+            if (!elementToHighlight) {
+                return false;
+            }
 
-                return {};
-            } else {
-                var processedResult: IWebKitResult = {};
-                processedResult.error = "could not find element"; // todo find official error
+            try {
+                browser.highlightElement((<Element>elementToHighlight), this._elementHighlightColor.margin, this._elementHighlightColor.border, this._elementHighlightColor.padding, this._elementHighlightColor.content);
+            } catch (e) {
+                // todo: I have no idea why this randomly fails when you give it the head node, but it does
+            }
+
+            return true;
+        }
+
+        private handleHighlightNodeRequest(request: IWebKitRequest): IWebKitResult {
+            var element_to_highlight: Node = this.getNode(request.params.nodeId);
+            var processedResult: IWebKitResult = {};
+
+            if (this.highlightNode(element_to_highlight)) {
+                processedResult.result = {};
                 return processedResult;
             }
+
+            processedResult.error = "could not find element"; // todo find official error
+            return processedResult;
         }
 
         private requestChildNodes(request: IWebKitRequest): IWebKitResult {
@@ -505,6 +582,18 @@ module Proxy {
             }
 
             return {};
+        }
+
+        private getDefaultView(doc: any): Window {
+            if (doc) {
+                if (typeof doc.defaultView !== "undefined") {
+                    return doc.defaultView;
+                } else {
+                    return doc.parentWindow;
+                }
+            }
+        
+            return null;
         }
     }
 
