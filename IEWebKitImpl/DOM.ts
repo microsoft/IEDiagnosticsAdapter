@@ -48,6 +48,7 @@ module Proxy {
                     this.highlightNode(<Element>event.target);
                 }
             };
+
         }
 
         public processMessage(method: string, request: IWebKitRequest): void {
@@ -595,6 +596,128 @@ module Proxy {
         
             return null;
         }
+
+        /**
+* Expands the dom tree to show the current remotely selected element
+*//*
+               public expandToRemoteSelectedElement(): void {
+                   if (this.domTreeDataSource) {
+                       this._remoteDom.getParentChainForSelectedElement().done((chain: string[]) => {
+                           if (chain && chain.length > 0) {
+                               this.domTreeDataSource.expandUidChain(chain)
+                                   .then(() => this._remoteDom.getSelectedElement())
+                                   .done((uid: string) => {
+                                   this.selectItemByUid(uid, /*centerItem= true); closecommenthere
+       
+                                   F12.DomExplorer.Telemetry.analytics.logExecuteCommand(F12.DomExplorer.Telemetry.CommandName.EXPAND_TO_REMOTE_SELECTED_ELEMENT, Common.TriggerType.Ui);
+                               });
+                           } else {
+                               DomExplorerWindow.showMissingElementError();
+                           }
+                       });
+                   }
+               }
+       */
+       
+               //iframe chain code for later
+               
+               public findParentChainForElement(currentNode: HTMLElement): number[] {
+                   try {
+                       var iframeChain: number[] = [];
+                       if (this.getDefaultView(currentNode.ownerDocument) !== this.getDefaultView(browser.document)) {
+                           // Build the 'iframe' chain for the first time
+                           iframeChain = this.getIFrameChain(browser.document, currentNode.ownerDocument);
+                       }
+       
+                       var uid: number = this.getNodeUid(currentNode);
+                       var uidChain = [uid]; // ? uid : this.getAssignedUid(<Element>currentNode.parentNode);
+       
+                       if (iframeChain && iframeChain.length > 0) {
+                           uidChain.concat(iframeChain) 
+                       }
+       
+                       return uidChain;
+                   } catch (e) {
+                       // Unable to find chain
+                       return [];
+                   }
+               }
+
+
+        /**
+         * Find all the 'iframe' children for this document
+         * @param rootDocumemnt The document to start searching in
+         * @param findDocument The document the chain should get to
+         */
+        private getIFrameChain(rootDocument: Document, findDocument: Document): number[] {
+            var tags = rootDocument.querySelectorAll("iframe, frame");
+            for (var i = 0, n = tags.length; i < n; i++) {
+                // Get a safe window
+                var frame = <HTMLIFrameElement>tags[i];
+                var view = this.getDefaultView(rootDocument);
+                var result = this.getValidWindow(view, frame.contentWindow);
+                if (result.isValid) {
+                    // Compare the documents
+                    if (result.window.document === findDocument) {
+                        // Found the 'iframe', so return the result
+                        //return [this.getUid(<Element>tags[i])];
+                        return [this.getNodeUid(<Element>tags[i])];
+                    }
+
+                    // No match, so 'recurse' into the children 'iframes'
+                    var chain = this.getIFrameChain(result.window.document, findDocument);
+                    if (chain && chain.length > 0) {
+                        // As we unwind the stack, append each 'iframe' element to the chain
+                        //chain.push(this.getUid(<Element>tags[i]));
+                        chain.push(this.getNodeUid(<Element>tags[i]));
+                        return chain;
+                    }
+                }
+            }
+
+            // Nothing found
+            return [];
+        }
+
+        /* Safely validates the window and gets the valid cross-site window when appropriate.
+        * @param context The window to use as the context for the call to getCrossSiteWindow if necessary.
+        * @param obj The object to attempt to get a valid window out of.
+        * @return .isValid is true if obj is a valid window and .window is obj or the cross-site window if necessary.
+        */
+        public getValidWindow(context: Window, obj: any): { isValid: boolean; window: Window; } {
+            try {
+                if (Object.prototype.toString.call(obj) === "[object Window]") {
+                    var w = obj;
+                    if (this.isCrossSiteWindow(context, obj)) {
+                        w = dom.getCrossSiteWindow(context, obj);
+                    }
+
+                    if (w && w.document) {
+                        return { isValid: true, window: w };
+                    }
+                }
+            } catch (e) {
+                // iframes with non-html content as well as non-Window objects injected by usercode can throw.
+                // Filter these out and do not consider them valid windows.
+            }
+
+            return { isValid: false, window: null };
+        }
+
+        public isCrossSiteWindow(currentWindowContext: Window, obj: any): boolean {
+            // it cannot be a cross site window if it's not a window
+            try {
+                var x = (<any>currentWindowContext).Object.getOwnPropertyNames(obj);
+            } catch (e) {
+                return true;
+            }
+
+            return false;
+        }
+
+
+
+
     }
 
     export var domHandler: DOMHandler = new DOMHandler();
