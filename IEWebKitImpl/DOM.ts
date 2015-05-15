@@ -17,7 +17,7 @@ module Proxy {
         private _windowExternal: any; // todo: Make an appropriate TS interface for external
         private _elementHighlightColor: any;
         private _nextAvailableStyleSheetUid: number;
-        private _sentCSS: boolean; // todo: find a better way to send this
+        private _sentCSS: WeakMap<Document, boolean>;
         private _mapStyleSheetToStyleSheetID: WeakMap<StyleSheet, number>;
 
         private _inspectModeEnabled: boolean;
@@ -27,12 +27,13 @@ module Proxy {
         constructor() {
             this._mapUidToNode = new Map<number, Node>(); // todo: This keeps nodes alive, which causes a memmory leak if the website is trying to remove nodes
             this._mapNodeToUid = new WeakMap<Node, number>();
+            this._sentCSS = new WeakMap<Document, boolean>();
+
             this._mapStyleSheetToStyleSheetID = new WeakMap<StyleSheet, number>();
 
             this._nextAvailableUid = 2; // 1 is reserved for the root
             this._nextAvailableStyleSheetUid = 1;
             this._windowExternal = (<any>external);
-            this._sentCSS = false;
             this._inspectModeEnabled = false;
             this._elementHighlightColor = {
                 margin: "rgba(250, 212, 107, 0.50)",
@@ -65,21 +66,10 @@ module Proxy {
                     break;
 
                 case "hideHighlight":
-                    // Chrome dev tools never requests CSS files, but always sends "hideHighlight" command around when it expects to get the CSS files.
-                    // this hack will do until we implement a better way to post events.
-                    if (!this._sentCSS) {
-                        this._sentCSS = true;
-                        //this.styleSheetAdded();
-                    }
-
                     processedResult = this.hideHighlight();
                     break;
 
                 case "highlightNode":
-
-                    //this.styleSheetAdded();
-
-
                     processedResult = this.handleHighlightNodeRequest(request);
                     break;
 
@@ -191,7 +181,8 @@ module Proxy {
             return processedResult;
         }
 
-        private styleSheetAdded(doc : Document): void {
+        private styleSheetAdded(doc: Document): void {
+            this._sentCSS.set(doc, true);
             for (var i = 0; i < doc.styleSheets.length; i++) {
                 var styleSheet: StyleSheet = doc.styleSheets[i];
                 var styleSheetID = this._nextAvailableStyleSheetUid++;
@@ -292,7 +283,7 @@ module Proxy {
 
             var htmlElement: HTMLElement = <HTMLElement>node;
             var doc: Document = htmlElement.ownerDocument;
-            var window: Window = this.getDefaultView(doc);
+            var window: Window = Common.getDefaultView(doc);
             if (!window) {
                 processedResult.error = "could not find view for node"; // todo: find official error
                 return processedResult;
@@ -395,10 +386,10 @@ module Proxy {
                     doc = doc.parentNode
                 }
 
-                var response = this.getValidWindow((<Document>doc).parentWindow,(<HTMLFrameElement>node).contentWindow);
+                var response = Common.getValidWindow((<Document>doc).parentWindow,(<HTMLFrameElement>node).contentWindow);
                 if (response.isValid) {
                     var frameDoc: Document = response.window.document;
-                    if (!Common.hasiframeID(frameDoc)) {
+                    if (!this._sentCSS.has(frameDoc)) {
                         this.styleSheetAdded(frameDoc);
                     }
 
@@ -630,17 +621,6 @@ module Proxy {
             return {};
         }
 
-        private getDefaultView(doc: any): Window {
-            if (doc) {
-                if (typeof doc.defaultView !== "undefined") {
-                    return doc.defaultView;
-                } else {
-                    return doc.parentWindow;
-                }
-            }
-
-            return null;
-        }
 
         /**
 * Expands the dom tree to show the current remotely selected element
@@ -684,7 +664,7 @@ module Proxy {
             //fixme refactor this function out
             try {
                 var iframeChain: Element[] = [];
-                if (this.getDefaultView(currentNode.ownerDocument) !== this.getDefaultView(browser.document)) {
+                if (Common.getDefaultView(currentNode.ownerDocument) !== Common.getDefaultView(browser.document)) {
                     // Build the 'iframe' chain for the first time
                     iframeChain = this.getIFrameChain(browser.document, currentNode.ownerDocument);
                 }
@@ -713,8 +693,8 @@ module Proxy {
             for (var i = 0, n = tags.length; i < n; i++) {
                 // Get a safe window
                 var frame = <HTMLIFrameElement>tags[i];
-                var view = this.getDefaultView(rootDocument);
-                var result = this.getValidWindow(view, frame.contentWindow);
+                var view = Common.getDefaultView(rootDocument);
+                var result = Common.getValidWindow(view, frame.contentWindow);
                 if (result.isValid) {
                     // Compare the documents
                     if (result.window.document === findDocument) {
@@ -736,43 +716,6 @@ module Proxy {
             // Nothing found
             return [];
         }
-
-        /* Safely validates the window and gets the valid cross-site window when appropriate.
-        * @param context The window to use as the context for the call to getCrossSiteWindow if necessary.
-        * @param obj The object to attempt to get a valid window out of.
-        * @return .isValid is true if obj is a valid window and .window is obj or the cross-site window if necessary.
-        */
-        public getValidWindow(context: Window, obj: any): { isValid: boolean; window: Window; } {
-            try {
-                if (Object.prototype.toString.call(obj) === "[object Window]") {
-                    var w = obj;
-                    if (this.isCrossSiteWindow(context, obj)) {
-                        w = dom.getCrossSiteWindow(context, obj);
-                    }
-
-                    if (w && w.document) {
-                        return { isValid: true, window: w };
-                    }
-                }
-            } catch (e) {
-                // iframes with non-html content as well as non-Window objects injected by usercode can throw.
-                // Filter these out and do not consider them valid windows.
-            }
-
-            return { isValid: false, window: null };
-        }
-
-        public isCrossSiteWindow(currentWindowContext: Window, obj: any): boolean {
-            // it cannot be a cross site window if it's not a window
-            try {
-                var x = (<any>currentWindowContext).Object.getOwnPropertyNames(obj);
-            } catch (e) {
-                return true;
-            }
-
-            return false;
-        }
-
 
 
 

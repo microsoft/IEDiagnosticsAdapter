@@ -53,7 +53,7 @@ module Proxy {
 
             switch (method) {
                 case "enable":
-                    processedResult = { result: { } };
+                    processedResult = { result: {} };
                     break;
 
                 case "navigate":
@@ -81,7 +81,7 @@ module Proxy {
                     break;
 
                 case "setShowViewportSizeOnResize":
-                    processedResult = { result: { } };
+                    processedResult = { result: {} };
                     break;
 
                 case "getAnimationsPlaybackRate":
@@ -158,27 +158,76 @@ module Proxy {
             return processedResult;
         }
 
+        private getResourceTreeRecursive(doc: Document, parentFrameID: string = ""): IWebKitResult {
+            // Casting to any as the default lib.d.ts does not have it on the Location object    
+            var securityOrigin = (<any>doc.parentWindow.location).origin || "";
+            var frameID = Common.getiframeID(doc);
+
+            // frame id is xxxx.1, loader id is xxxx.2
+            var loaderId: string = frameID.substring(0, frameID.length - 1) + "2";
+            var frameinfo: any = {
+                frame: {
+                    id: frameID,
+                    loaderId: loaderId,
+                    url: doc.parentWindow.location.href,
+                    mimeType: "text/html", // todo: doc.mimetype is "HTM File", if documents ever have a different mimetype figure out how to get it dynamicly
+                    securityOrigin: securityOrigin
+                },
+                resources: []
+            };
+
+            if (parentFrameID !== "") {
+                frameinfo.frame.parentId = parentFrameID;
+                frameinfo.frame.name = "frame";
+            }
+
+            for (var i = 0; i < doc.scripts.length; i++) {
+                Assert.areEqual(doc.scripts[i].tagName, "SCRIPT");
+                var script: HTMLScriptElement = <HTMLScriptElement>doc.scripts[i];
+                if (script.src) {
+                    frameinfo.resources.push({
+                        url: script.src,
+                        type: script.localName,
+                        mimeType: script.type
+                    });
+                }
+            }
+
+            for (var i = 0; i < doc.styleSheets.length; i++) {
+                var styleSheet: StyleSheet = doc.styleSheets[i];
+                if (styleSheet.href) {
+                    frameinfo.resources.push({
+                        url: styleSheet.href,
+                        type: "Stylesheet",
+                        mimeType: styleSheet.type // if fials then hardcode "text/css"
+                        //todo: chrome somtimes adds a failed node here, figure out why/what it is used for
+                    });
+                }
+            }
+
+            var tags = doc.querySelectorAll("iframe, frame");
+            if (tags.length > 0) {
+                frameinfo.childFrames = [];
+            }
+            for (var i = 0, n = tags.length; i < n; i++) {
+                var frame = <HTMLIFrameElement>tags[i];
+                var view = Common.getDefaultView(doc);
+                var result = Common.getValidWindow(view, frame.contentWindow);
+                if (result.isValid) {
+                    frameinfo.childFrames.push(this.getResourceTreeRecursive(result.window.document));
+                }
+            }
+            return frameinfo;
+        }
+
+
         private getResourceTree(request: IWebKitRequest): IWebKitResult {
             var processedResult: IWebKitResult = {};
 
             try {
-                var url = browser.document.parentWindow.location.href;
-                var mimeType = "text/html";
-                // Casting to any as the default lib.d.ts does not have it on the Location object
-                var securityOrigin = (<any>browser.document.parentWindow.location).origin;
-
                 processedResult = {
                     result: {
-                        frameTree: {
-                            frame: {
-                                id: "1500.1",
-                                loaderId: "1500.2",
-                                url: url,
-                                mimeType: mimeType,
-                                securityOrigin: securityOrigin
-                            },
-                            resources: []
-                        }
+                        frameTree: this.getResourceTreeRecursive(browser.document)
                     }
                 };
             } catch (ex) {

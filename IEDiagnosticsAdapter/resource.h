@@ -9,3 +9,4 @@
 #define IDR_DOM_SCRIPT                   105
 #define IDR_PAGE_SCRIPT                  106
 #define IDR_RUNTIME_SCRIPT               107
+#define IDR_ASSERT_SCRIPT                108
