@@ -19,14 +19,16 @@ module Proxy {
         private _nextAvailableStyleSheetUid: number;
         private _sentCSS: boolean; // todo: find a better way to send this
         private _mapStyleSheetToStyleSheetID: WeakMap<StyleSheet, number>;
+
         private _inspectModeEnabled: boolean;
-        private _selectElementHandler: (event:Event) => void;
+        private _selectElementHandler: (event: Event) => void;
         private _hoverElementHandler: (event: Event) => void;
 
         constructor() {
-            this._mapUidToNode = new Map<number, Node>();
+            this._mapUidToNode = new Map<number, Node>(); // todo: This keeps nodes alive, which causes a memmory leak if the website is trying to remove nodes
             this._mapNodeToUid = new WeakMap<Node, number>();
             this._mapStyleSheetToStyleSheetID = new WeakMap<StyleSheet, number>();
+
             this._nextAvailableUid = 2; // 1 is reserved for the root
             this._nextAvailableStyleSheetUid = 1;
             this._windowExternal = (<any>external);
@@ -49,6 +51,10 @@ module Proxy {
                 }
             };
 
+            // the root document always has nodeID 1
+            this._mapUidToNode.set(1, browser.document);
+            this._mapNodeToUid.set(browser.document, 1);
+
         }
 
         public processMessage(method: string, request: IWebKitRequest): void {
@@ -63,13 +69,17 @@ module Proxy {
                     // this hack will do until we implement a better way to post events.
                     if (!this._sentCSS) {
                         this._sentCSS = true;
-                        this.styleSheetAdded();
+                        //this.styleSheetAdded();
                     }
 
                     processedResult = this.hideHighlight();
                     break;
 
                 case "highlightNode":
+
+                    //this.styleSheetAdded();
+
+
                     processedResult = this.handleHighlightNodeRequest(request);
                     break;
 
@@ -102,13 +112,11 @@ module Proxy {
             browserHandler.postResponse(request.id, processedResult);
         }
 
+
+
         private getNodeUid(node: Node): number {
             if (!node) {
                 throw new Error("invalid node");
-            }
-
-            if (node === browser.document) {
-                return 1;
             }
 
             var uid: number;
@@ -135,20 +143,26 @@ module Proxy {
             if (target) {
                 this.highlightNode(target);
             }
-
-            var chain: Node[] = [];
-            var curentElt: Node = target;
-
             // expand the dom up to the selected node, starting from the closest parent the Chrome Dev Tools knows about
-            while (curentElt.parentNode && !this._mapNodeToUid.has(curentElt)) {
-                chain.push(curentElt);
-                curentElt = curentElt.parentNode;
+
+            //iframechain [0] is root and [length-1] is target
+            var chain: Node[] = this.findFullParentChainForElement(target).reverse();
+            var start_index: number = chain.length;
+            for (var i = 0; i < chain.length; i++) {
+                if (!this._mapNodeToUid.has(chain[i])) {
+                    start_index = i - 1;
+                    break;
+                }
             }
 
-            chain.push(curentElt);
-            while (chain.length > 0) {
-                this.setChildNodes(this.getNodeUid(chain.pop()));
+
+            if (start_index != chain.length) {
+                chain.pop(); // don't resend selected elt
+                for (var i = start_index; i < chain.length; i++) {
+                    this.setChildNodes(this.getNodeUid(chain[i]));      
+                }
             }
+
 
             var response: any = {
                 method: "DOM.inspectNodeRequested",
@@ -177,30 +191,29 @@ module Proxy {
             return processedResult;
         }
 
-        private styleSheetAdded(): void {
-            for (var i = 0; i < browser.document.styleSheets.length; i++) {
-                var styleSheet: StyleSheet = browser.document.styleSheets[i];
-                var ownerid = this.getNodeUid(styleSheet.ownerNode);
-                var ssID = this._nextAvailableStyleSheetUid++;
-                var sourceURL = styleSheet.href;
-                var disabled = styleSheet.disabled;
+        private styleSheetAdded(doc : Document): void {
+            for (var i = 0; i < doc.styleSheets.length; i++) {
+                var styleSheet: StyleSheet = doc.styleSheets[i];
+                var styleSheetID = this._nextAvailableStyleSheetUid++;
+                this._mapStyleSheetToStyleSheetID.set(styleSheet, styleSheetID);
 
-                this._mapStyleSheetToStyleSheetID.set(styleSheet, ssID);
-
-                var response: any = {};
-                response.method = "CSS.styleSheetAdded";
-                response.params = {};
-                response.params.header = {};
-                response.params.header.styleSheetId = "" + ssID;
-                response.params.header.origin = "regular"; // todo: see if there is a way to get this data from IE
-                response.params.header.disabled = disabled;
-                response.params.header.sourceURL = sourceURL;
-                response.params.header.title = styleSheet.title;
-                response.params.header.frameId = "1500.1"; // todo: add support for Iframes
-                response.params.header.isInline = "false"; // todo: see if there is a way to get this data from IE
-                response.params.header.startLine = "0";
-                response.params.header.startColumn = "0";
-                response.params.header.ownerNode = "" + ownerid;
+                var response: any = {
+                    method: "CSS.styleSheetAdded",
+                    params: {
+                        header: {
+                            styleSheetId: "" + styleSheetID,
+                            origin: "regular", // todo: see if there is a way to get this data from IE
+                            disabled: styleSheet.disabled,
+                            sourceURL: styleSheet.href,
+                            title: styleSheet.title,
+                            frameId: Common.getiframeID(doc),
+                            isInline: "false", // todo: see if there is a way to get this data from IE
+                            startLine: "0",
+                            startColumn: "0",
+                            ownerNode: "" + this.getNodeUid(styleSheet.ownerNode),
+                        }
+                    }
+                };
 
                 (<any>external).sendMessage("postMessage", JSON.stringify(response));
             }
@@ -374,9 +387,40 @@ module Proxy {
                 }
             }
 
+            // todo: this may be a giant security hole, make sure you can't use this to escape Iframes
+            // if the element is an iframe
+            if ((<any>node).contentWindow) {
+                var doc = node;
+                while (doc.parentNode) {
+                    doc = doc.parentNode
+                }
+
+                var response = this.getValidWindow((<Document>doc).parentWindow,(<HTMLFrameElement>node).contentWindow);
+                if (response.isValid) {
+                    var frameDoc: Document = response.window.document;
+                    if (!Common.hasiframeID(frameDoc)) {
+                        this.styleSheetAdded(frameDoc);
+                    }
+
+                    iNode.frameId = Common.getiframeID(frameDoc); //response.window.document.uniqueID; // todo generate  correct frameID somehow
+                    iNode.contentDocument = {
+                        nodeId: this.getNodeUid(frameDoc),
+                        nodeType: frameDoc.nodeType,
+                        nodeName: frameDoc.nodeName,
+                        localName: frameDoc.localName,
+                        nodeValue: frameDoc.nodeValue,
+                        documentURL: frameDoc.URL,
+                        baseURL: frameDoc.URL,
+                        xmlVersion: frameDoc.xmlVersion,
+                        childNodeCount: this.numberOfNonWhitespaceChildNodes(frameDoc)
+                    };
+                }
+            }
             return iNode;
         }
 
+
+        
         /**
          * Does the same thing as createChromeNodeFromIENode but also recursively converts child nodes. 
          */
@@ -440,6 +484,7 @@ module Proxy {
         }
 
         private getDocument(): IWebKitResult {
+            this.styleSheetAdded(browser.document);
             var document: INode = {
                 nodeId: 1,
                 nodeType: browser.document.nodeType,
@@ -593,55 +638,69 @@ module Proxy {
                     return doc.parentWindow;
                 }
             }
-        
+
             return null;
         }
 
         /**
 * Expands the dom tree to show the current remotely selected element
 *//*
-               public expandToRemoteSelectedElement(): void {
-                   if (this.domTreeDataSource) {
-                       this._remoteDom.getParentChainForSelectedElement().done((chain: string[]) => {
-                           if (chain && chain.length > 0) {
-                               this.domTreeDataSource.expandUidChain(chain)
-                                   .then(() => this._remoteDom.getSelectedElement())
-                                   .done((uid: string) => {
-                                   this.selectItemByUid(uid, /*centerItem= true); closecommenthere
-       
-                                   F12.DomExplorer.Telemetry.analytics.logExecuteCommand(F12.DomExplorer.Telemetry.CommandName.EXPAND_TO_REMOTE_SELECTED_ELEMENT, Common.TriggerType.Ui);
-                               });
-                           } else {
-                               DomExplorerWindow.showMissingElementError();
-                           }
-                       });
-                   }
-               }
-       */
-       
-               //iframe chain code for later
+                       public expandToRemoteSelectedElement(): void {
+                           if (this.domTreeDataSource) {
+                               this._remoteDom.getParentChainForSelectedElement().done((chain: string[]) => {
+                                   if (chain && chain.length > 0) {
+                                       this.domTreeDataSource.expandUidChain(chain)
+                                           .then(() => this._remoteDom.getSelectedElement())
+                                           .done((uid: string) => {
+                                           this.selectItemByUid(uid, /*centerItem= true); closecommenthere
                
-               public findParentChainForElement(currentNode: HTMLElement): number[] {
-                   try {
-                       var iframeChain: number[] = [];
-                       if (this.getDefaultView(currentNode.ownerDocument) !== this.getDefaultView(browser.document)) {
-                           // Build the 'iframe' chain for the first time
-                           iframeChain = this.getIFrameChain(browser.document, currentNode.ownerDocument);
+                                           F12.DomExplorer.Telemetry.analytics.logExecuteCommand(F12.DomExplorer.Telemetry.CommandName.EXPAND_TO_REMOTE_SELECTED_ELEMENT, Common.TriggerType.Ui);
+                                       });
+                                   } else {
+                                       DomExplorerWindow.showMissingElementError();
+                                   }
+                               });
+                           }
                        }
+               */
+
+        //iframe chain code for later
+        public findFullParentChainForElement(currentNode: Element): Node[] {
+            var iframeChain = this.findParentChainForElement(currentNode);
+            var fullChain: Node[] = [];
+            var curentElt: Node;
+            for (var i = 0; i < iframeChain.length; i++) {
+                curentElt = iframeChain[i];
+                while (curentElt) { // && !this._mapNodeToUid.has(curentElt)
+                    fullChain.push(curentElt);
+                    curentElt = curentElt.parentNode;
+                }
+            }
+            return fullChain;
+        }
+
+        // todo  this function seems kinda useless
+        public findParentChainForElement(currentNode: Element): Element[] {
+            //fixme refactor this function out
+            try {
+                var iframeChain: Element[] = [];
+                if (this.getDefaultView(currentNode.ownerDocument) !== this.getDefaultView(browser.document)) {
+                    // Build the 'iframe' chain for the first time
+                    iframeChain = this.getIFrameChain(browser.document, currentNode.ownerDocument);
+                }
+
+                var chain = [currentNode]; 
        
-                       var uid: number = this.getNodeUid(currentNode);
-                       var uidChain = [uid]; // ? uid : this.getAssignedUid(<Element>currentNode.parentNode);
-       
-                       if (iframeChain && iframeChain.length > 0) {
-                           uidChain.concat(iframeChain) 
-                       }
-       
-                       return uidChain;
-                   } catch (e) {
-                       // Unable to find chain
-                       return [];
-                   }
-               }
+                if (iframeChain && iframeChain.length > 0) {
+                    chain = chain.concat(iframeChain)
+                }
+
+                return chain;
+            } catch (e) {
+                // Unable to find chain
+                return [];
+            }
+        }
 
 
         /**
@@ -649,7 +708,7 @@ module Proxy {
          * @param rootDocumemnt The document to start searching in
          * @param findDocument The document the chain should get to
          */
-        private getIFrameChain(rootDocument: Document, findDocument: Document): number[] {
+        private getIFrameChain(rootDocument: Document, findDocument: Document): Element[] {
             var tags = rootDocument.querySelectorAll("iframe, frame");
             for (var i = 0, n = tags.length; i < n; i++) {
                 // Get a safe window
@@ -661,15 +720,14 @@ module Proxy {
                     if (result.window.document === findDocument) {
                         // Found the 'iframe', so return the result
                         //return [this.getUid(<Element>tags[i])];
-                        return [this.getNodeUid(<Element>tags[i])];
+                        return [<Element>tags[i]];
                     }
 
                     // No match, so 'recurse' into the children 'iframes'
                     var chain = this.getIFrameChain(result.window.document, findDocument);
                     if (chain && chain.length > 0) {
                         // As we unwind the stack, append each 'iframe' element to the chain
-                        //chain.push(this.getUid(<Element>tags[i]));
-                        chain.push(this.getNodeUid(<Element>tags[i]));
+                        chain.push(<Element>tags[i]);
                         return chain;
                     }
                 }

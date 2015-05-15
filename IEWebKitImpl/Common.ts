@@ -7,6 +7,30 @@
 module Proxy {
     "use strict";
     export class Common {
+        private static _mapDocumentToFrameID: WeakMap<Document, string> = new WeakMap<Document, string>();
+        private static _nextAvailableFrameid: number = 1500.1;
+
+        public static getiframeID(doc: Document): string {
+            // if (!doc || doc === browser.document) {
+            if (!doc || doc.nodeType !== NodeType.DocumentNode) {
+                throw new Error("invalid node");
+            }
+
+            if (this._mapDocumentToFrameID.has(doc)) {
+                return this._mapDocumentToFrameID.get(doc);
+            }
+
+            var frameID: number = this._nextAvailableFrameid;
+            this._nextAvailableFrameid = this._nextAvailableFrameid + 100;
+            this._mapDocumentToFrameID.set(doc, "" + frameID);
+            return "" + frameID;
+        }
+
+        public static hasiframeID(doc: Document): boolean {
+            return this._mapDocumentToFrameID.has(doc);
+        }
+
+
         public static createResponse(id: number, value: IWebKitResult): IWebKitResponse {
             var response: IWebKitResponse = {
                 id: id
