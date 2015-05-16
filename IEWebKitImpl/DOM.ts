@@ -17,7 +17,7 @@ module Proxy {
         private _windowExternal: any; // todo: Make an appropriate TS interface for external
         private _elementHighlightColor: any;
         private _nextAvailableStyleSheetUid: number;
-        private _sentCSS: WeakMap<Document, boolean>;
+        private _sentCSS: WeakMap<Document, boolean>; // using a WeakMap as a WeakSet because IE11 does not support WeakSet
         private _mapStyleSheetToStyleSheetID: WeakMap<StyleSheet, number>;
 
         private _inspectModeEnabled: boolean;
@@ -55,7 +55,6 @@ module Proxy {
             // the root document always has nodeID 1
             this._mapUidToNode.set(1, browser.document);
             this._mapNodeToUid.set(browser.document, 1);
-
         }
 
         public processMessage(method: string, request: IWebKitRequest): void {
@@ -133,26 +132,25 @@ module Proxy {
             if (target) {
                 this.highlightNode(target);
             }
-            // expand the dom up to the selected node, starting from the closest parent the Chrome Dev Tools knows about
 
-            //iframechain [0] is root and [length-1] is target
-            var chain: Node[] = this.findFullParentChainForElement(target).reverse();
-            var start_index: number = chain.length;
+            // expand the dom up to the selected node, starting from the closest parent the Chrome Dev Tools knows about
+            var chain: Node[] = this.findParentChainForElement(target).reverse();
+
+            // chain[0] is the root document and [length-1] is target. We want to send setChildNodes notifications starting from the closest parent of target that chrome knows about
+            var startIndex: number = chain.length;
             for (var i = 0; i < chain.length; i++) {
                 if (!this._mapNodeToUid.has(chain[i])) {
-                    start_index = i - 1;
+                    startIndex = i - 1;
                     break;
                 }
             }
 
-
-            if (start_index != chain.length) {
-                chain.pop(); // don't resend selected elt
-                for (var i = start_index; i < chain.length; i++) {
+            if (startIndex != chain.length) {
+                chain.pop(); // we don't want to send a setChildNodes notification for the selected element, only it's parents
+                for (var i = startIndex; i < chain.length; i++) {
                     this.setChildNodes(this.getNodeUid(chain[i]));      
                 }
             }
-
 
             var response: any = {
                 method: "DOM.inspectNodeRequested",
@@ -355,46 +353,48 @@ module Proxy {
 
             return processedResult;
         }
-
-        private createChromeNodeFromIENode(node: Node): INode {
-            var iNode: INode = {
-                nodeId: this.getNodeUid(node),
-                nodeType: node.nodeType,
-                nodeName: node.nodeName,
-                localName: node.localName || "",
-                nodeValue: node.nodeValue || ""
+       
+        /**
+         * Does the same thing as createChromeNodeFromIENode but also recursively converts child nodes. 
+         */
+        private createChromeNodeFromIENode(ieNode: Node, depth: number): INode {
+            var chromeNode: INode = {
+                nodeId: this.getNodeUid(ieNode),
+                nodeType: ieNode.nodeType,
+                nodeName: ieNode.nodeName,
+                localName: ieNode.localName || "",
+                nodeValue: ieNode.nodeValue || ""
             };
 
-            if (node.nodeType === NodeType.DocumentTypeNode) {
-                iNode.publicId = (<DocumentType>node).publicId || "";
-                iNode.systemId = (<DocumentType>node).systemId || "";
+            if (ieNode.nodeType === NodeType.DocumentTypeNode) {
+                chromeNode.publicId = (<DocumentType>ieNode).publicId || "";
+                chromeNode.systemId = (<DocumentType>ieNode).systemId || "";
             }
 
-            if (node.attributes) {
-                iNode.attributes = [];
-                for (var i = 0; i < node.attributes.length; i++) {
-                    iNode.attributes.push(node.attributes[i].name);
-                    iNode.attributes.push(node.attributes[i].value);
+            if (ieNode.attributes) {
+                chromeNode.attributes = [];
+                for (var i = 0; i < ieNode.attributes.length; i++) {
+                    chromeNode.attributes.push(ieNode.attributes[i].name);
+                    chromeNode.attributes.push(ieNode.attributes[i].value);
                 }
             }
 
-            // todo: this may be a giant security hole, make sure you can't use this to escape Iframes
             // if the element is an iframe
-            if ((<any>node).contentWindow) {
-                var doc = node;
+            if ((<any>ieNode).contentWindow) {
+                var doc = ieNode;
                 while (doc.parentNode) {
                     doc = doc.parentNode
                 }
 
-                var response = Common.getValidWindow((<Document>doc).parentWindow,(<HTMLFrameElement>node).contentWindow);
+                var response = Common.getValidWindow((<Document>doc).parentWindow,(<HTMLFrameElement>ieNode).contentWindow);
                 if (response.isValid) {
                     var frameDoc: Document = response.window.document;
                     if (!this._sentCSS.has(frameDoc)) {
                         this.styleSheetAdded(frameDoc);
                     }
 
-                    iNode.frameId = Common.getiframeID(frameDoc); //response.window.document.uniqueID; // todo generate  correct frameID somehow
-                    iNode.contentDocument = {
+                    chromeNode.frameId = Common.getiframeID(frameDoc);
+                    chromeNode.contentDocument = {
                         nodeId: this.getNodeUid(frameDoc),
                         nodeType: frameDoc.nodeType,
                         nodeName: frameDoc.nodeName,
@@ -407,17 +407,8 @@ module Proxy {
                     };
                 }
             }
-            return iNode;
-        }
 
-
-        
-        /**
-         * Does the same thing as createChromeNodeFromIENode but also recursively converts child nodes. 
-         */
-        private createChromeNodeFromIENodeRecursive(ieNode: Node, depth: number): INode {
-            var chromeNode: INode = this.createChromeNodeFromIENode(ieNode);
-
+            // now recusively add children to chromeNode
             if (this.numberOfNonWhitespaceChildNodes(ieNode) > 0) {
                 chromeNode.childNodeCount = this.numberOfNonWhitespaceChildNodes(ieNode);
             }
@@ -429,7 +420,7 @@ module Proxy {
 
                 for (var i = 0; i < ieNode.childNodes.length; i++) {
                     if (!this.isWhitespaceNode(ieNode.childNodes[i])) {
-                        chromeNode.children.push(this.createChromeNodeFromIENodeRecursive(ieNode.childNodes[i], depth - 1));
+                        chromeNode.children.push(this.createChromeNodeFromIENode(ieNode.childNodes[i], depth - 1));
                     }
                 }
             }
@@ -459,7 +450,7 @@ module Proxy {
             // loop over all nodes, ignoring whitespace nodes
             for (var i = 0; i < ieNode.childNodes.length; i++) {
                 if (!this.isWhitespaceNode(ieNode.childNodes[i])) {
-                    nodeArray.push(this.createChromeNodeFromIENodeRecursive(ieNode.childNodes[i], 1));
+                    nodeArray.push(this.createChromeNodeFromIENode(ieNode.childNodes[i], 1));
                 }
             }
 
@@ -501,7 +492,7 @@ module Proxy {
 
             for (var i = 0; i < browser.document.childNodes.length; i++) {
                 if (!this.isWhitespaceNode(browser.document.childNodes[i])) {
-                    document.children.push(this.createChromeNodeFromIENodeRecursive(browser.document.childNodes[i], 1));
+                    document.children.push(this.createChromeNodeFromIENode(browser.document.childNodes[i], 1));
                 }
             }
 
@@ -621,67 +612,34 @@ module Proxy {
             return {};
         }
 
-
-        /**
-* Expands the dom tree to show the current remotely selected element
-*//*
-                       public expandToRemoteSelectedElement(): void {
-                           if (this.domTreeDataSource) {
-                               this._remoteDom.getParentChainForSelectedElement().done((chain: string[]) => {
-                                   if (chain && chain.length > 0) {
-                                       this.domTreeDataSource.expandUidChain(chain)
-                                           .then(() => this._remoteDom.getSelectedElement())
-                                           .done((uid: string) => {
-                                           this.selectItemByUid(uid, /*centerItem= true); closecommenthere
-               
-                                           F12.DomExplorer.Telemetry.analytics.logExecuteCommand(F12.DomExplorer.Telemetry.CommandName.EXPAND_TO_REMOTE_SELECTED_ELEMENT, Common.TriggerType.Ui);
-                                       });
-                                   } else {
-                                       DomExplorerWindow.showMissingElementError();
-                                   }
-                               });
-                           }
-                       }
-               */
-
-        //iframe chain code for later
-        public findFullParentChainForElement(currentNode: Element): Node[] {
-            var iframeChain = this.findParentChainForElement(currentNode);
-            var fullChain: Node[] = [];
-            var curentElt: Node;
-            for (var i = 0; i < iframeChain.length; i++) {
-                curentElt = iframeChain[i];
-                while (curentElt) { // && !this._mapNodeToUid.has(curentElt)
-                    fullChain.push(curentElt);
-                    curentElt = curentElt.parentNode;
-                }
-            }
-            return fullChain;
-        }
-
-        // todo  this function seems kinda useless
-        public findParentChainForElement(currentNode: Element): Element[] {
-            //fixme refactor this function out
+        public findParentChainForElement(element: Element): Node[]{
             try {
-                var iframeChain: Element[] = [];
-                if (Common.getDefaultView(currentNode.ownerDocument) !== Common.getDefaultView(browser.document)) {
-                    // Build the 'iframe' chain for the first time
-                    iframeChain = this.getIFrameChain(browser.document, currentNode.ownerDocument);
+                var partialChain: Element[] = [element];
+                if (Common.getDefaultView(element.ownerDocument) !== Common.getDefaultView(browser.document)) {
+                    // get the chain of Iframes leading to element
+                    var iframeChain: Element[] = this.getIFrameChain(browser.document, element.ownerDocument);                    
+                    if (iframeChain && iframeChain.length > 0) {
+                        partialChain = partialChain.concat(iframeChain)
+                    }
                 }
 
-                var chain = [currentNode]; 
-       
-                if (iframeChain && iframeChain.length > 0) {
-                    chain = chain.concat(iframeChain)
+                // partialChain only contains element and iframes nodes, fill in all of the rest of the nodes
+                var fullChain: Node[] = [];
+                var curentElt: Node;
+                for (var i = 0; i < partialChain.length; i++) {
+                    curentElt = partialChain[i];
+                    while (curentElt) {
+                        fullChain.push(curentElt);
+                        curentElt = curentElt.parentNode;
+                    }
                 }
 
-                return chain;
+                return fullChain;
             } catch (e) {
                 // Unable to find chain
                 return [];
             }
         }
-
 
         /**
          * Find all the 'iframe' children for this document
@@ -716,9 +674,6 @@ module Proxy {
             // Nothing found
             return [];
         }
-
-
-
     }
 
     export var domHandler: DOMHandler = new DOMHandler();

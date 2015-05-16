@@ -181,6 +181,7 @@ module Proxy {
                 frameinfo.frame.name = "frame";
             }
 
+            // add in resources for this frame
             for (var i = 0; i < doc.scripts.length; i++) {
                 Assert.areEqual(doc.scripts[i].tagName, "SCRIPT");
                 var script: HTMLScriptElement = <HTMLScriptElement>doc.scripts[i];
@@ -199,12 +200,13 @@ module Proxy {
                     frameinfo.resources.push({
                         url: styleSheet.href,
                         type: "Stylesheet",
-                        mimeType: styleSheet.type // if fials then hardcode "text/css"
-                        //todo: chrome somtimes adds a failed node here, figure out why/what it is used for
+                        mimeType: styleSheet.type
+                        // todo: chrome somtimes adds a failed node here, figure out why/what it is used for
                     });
                 }
             }
 
+            // recursively add in childFrames
             var tags = doc.querySelectorAll("iframe, frame");
             if (tags.length > 0) {
                 frameinfo.childFrames = [];
@@ -214,7 +216,7 @@ module Proxy {
                 var view = Common.getDefaultView(doc);
                 var result = Common.getValidWindow(view, frame.contentWindow);
                 if (result.isValid) {
-                    frameinfo.childFrames.push(this.getResourceTreeRecursive(result.window.document));
+                    frameinfo.childFrames.push(this.getResourceTreeRecursive(result.window.document, frameID));
                 }
             }
             return frameinfo;

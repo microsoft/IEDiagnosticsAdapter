@@ -11,7 +11,6 @@ module Proxy {
         private static _nextAvailableFrameid: number = 1500.1;
 
         public static getiframeID(doc: Document): string {
-            // if (!doc || doc === browser.document) {
             if (!doc || doc.nodeType !== NodeType.DocumentNode) {
                 throw new Error("invalid node");
             }
@@ -31,10 +30,10 @@ module Proxy {
         }
 
         /* Safely validates the window and gets the valid cross-site window when appropriate.
-* @param context The window to use as the context for the call to getCrossSiteWindow if necessary.
-* @param obj The object to attempt to get a valid window out of.
-* @return .isValid is true if obj is a valid window and .window is obj or the cross-site window if necessary.
-*/
+         * @param context The window to use as the context for the call to getCrossSiteWindow if necessary.
+         * @param obj The object to attempt to get a valid window out of.
+         * @return .isValid is true if obj is a valid window and .window is obj or the cross-site window if necessary.
+         */
         public static getValidWindow(context: Window, obj: any): { isValid: boolean; window: Window; } {
             try {
                 if (Object.prototype.toString.call(obj) === "[object Window]") {
