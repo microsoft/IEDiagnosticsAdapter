@@ -52,18 +52,6 @@ module Proxy {
             }
 
             return { isValid: false, window: null };
-
-        }
-
-        private static isCrossSiteWindow(currentWindowContext: Window, obj: any): boolean {
-            // it cannot be a cross site window if it's not a window
-            try {
-                var x = (<any>currentWindowContext).Object.getOwnPropertyNames(obj);
-            } catch (e) {
-                return true;
-            }
-
-            return false;
         }
 
         public static getDefaultView(doc: any): Window {
@@ -97,8 +85,18 @@ module Proxy {
 
             return response;
         }
-    }
+            
+        private static isCrossSiteWindow(currentWindowContext: Window, obj: any): boolean {
+            // it cannot be a cross site window if it's not a window
+            try {
+                var x = (<any>currentWindowContext).Object.getOwnPropertyNames(obj);
+            } catch (e) {
+                return true;
+            }
 
+            return false;
+        }
+    }
 
     var common = new Common();
 }

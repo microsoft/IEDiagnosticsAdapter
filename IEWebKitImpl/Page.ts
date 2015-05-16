@@ -211,6 +211,7 @@ module Proxy {
             if (tags.length > 0) {
                 frameinfo.childFrames = [];
             }
+
             for (var i = 0, n = tags.length; i < n; i++) {
                 var frame = <HTMLIFrameElement>tags[i];
                 var view = Common.getDefaultView(doc);
@@ -219,9 +220,9 @@ module Proxy {
                     frameinfo.childFrames.push(this.getResourceTreeRecursive(result.window.document, frameID));
                 }
             }
+
             return frameinfo;
         }
-
 
         private getResourceTree(request: IWebKitRequest): IWebKitResult {
             var processedResult: IWebKitResult = {};

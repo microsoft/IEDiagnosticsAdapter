@@ -101,8 +101,6 @@ module Proxy {
             browserHandler.postResponse(request.id, processedResult);
         }
 
-
-
         private getNodeUid(node: Node): number {
             if (!node) {
                 throw new Error("invalid node");
@@ -145,7 +143,7 @@ module Proxy {
                 }
             }
 
-            if (startIndex != chain.length) {
+            if (startIndex !== chain.length) {
                 chain.pop(); // we don't want to send a setChildNodes notification for the selected element, only it's parents
                 for (var i = startIndex; i < chain.length; i++) {
                     this.setChildNodes(this.getNodeUid(chain[i]));      
@@ -383,10 +381,10 @@ module Proxy {
             if ((<any>ieNode).contentWindow) {
                 var doc = ieNode;
                 while (doc.parentNode) {
-                    doc = doc.parentNode
+                    doc = doc.parentNode;
                 }
 
-                var response = Common.getValidWindow((<Document>doc).parentWindow,(<HTMLFrameElement>ieNode).contentWindow);
+                var response = Common.getValidWindow((<Document>doc).parentWindow, (<HTMLFrameElement>ieNode).contentWindow);
                 if (response.isValid) {
                     var frameDoc: Document = response.window.document;
                     if (!this._sentCSS.has(frameDoc)) {
@@ -612,14 +610,14 @@ module Proxy {
             return {};
         }
 
-        public findParentChainForElement(element: Element): Node[]{
+        private findParentChainForElement(element: Element): Node[] {
             try {
                 var partialChain: Element[] = [element];
                 if (Common.getDefaultView(element.ownerDocument) !== Common.getDefaultView(browser.document)) {
                     // get the chain of Iframes leading to element
                     var iframeChain: Element[] = this.getIFrameChain(browser.document, element.ownerDocument);                    
                     if (iframeChain && iframeChain.length > 0) {
-                        partialChain = partialChain.concat(iframeChain)
+                        partialChain = partialChain.concat(iframeChain);
                     }
                 }
 
@@ -657,7 +655,6 @@ module Proxy {
                     // Compare the documents
                     if (result.window.document === findDocument) {
                         // Found the 'iframe', so return the result
-                        //return [this.getUid(<Element>tags[i])];
                         return [<Element>tags[i]];
                     }
 

@@ -4,6 +4,9 @@
 
 /// <reference path="Interfaces.d.ts"/>
 
+/// <disable code="SA9017" />
+/// <disable code="SA9014" />
+
 module Proxy {
     "use strict";
     /**
@@ -111,6 +114,7 @@ module Proxy {
                 if (ex.stack) {
                     ex.description = ex.stack;
                 }
+
                 throw ex;
             }
         }
