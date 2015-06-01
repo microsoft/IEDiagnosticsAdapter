@@ -110,7 +110,7 @@ namespace Helpers
             charsNeeded = ::ExpandEnvironmentStrings(path, expandedString.GetBuffer(charsNeeded), charsNeeded);
             ATLENSURE_RETURN_HR(charsNeeded > 0, AtlHresultFromLastError());
         }
-        expandedString.ReleaseBufferSetLength(charsNeeded - 1); 
+        expandedString.ReleaseBufferSetLength(charsNeeded - 1);
 
         return S_OK;
     }
@@ -239,7 +239,7 @@ namespace Helpers
         FAIL_IF_NOT_S_OK(hr);
         hr = spSafeArray.SetAt(2, ::SysAllocString(L""), FALSE);
         FAIL_IF_NOT_S_OK(hr);
-        hr = spSafeArray.SetAt(3, ::SysAllocString(L""), FALSE); 
+        hr = spSafeArray.SetAt(3, ::SysAllocString(L""), FALSE);
         FAIL_IF_NOT_S_OK(hr);
 
         // Start diagnostics mode
@@ -268,29 +268,38 @@ namespace Helpers
             auto c = value[i];
             switch (c)
             {
-                case '\\': escapedValue.Append("\\\\"); break;
-                case '\"': escapedValue.Append("\\\""); break;
-                case '/': escapedValue.Append("\\/"); break;
-                case '\b': escapedValue.Append("\\b"); break;
-                case '\f': escapedValue.Append("\\f"); break;
-                case '\n': escapedValue.Append("\\n"); break;
-                case '\r': escapedValue.Append("\\r"); break;
-                case '\t': escapedValue.Append("\\t"); break;
-                default:
-                    if (c < 0x20 || c > 0x7e)
-                    {
-                        CStringA charLiteral;
-                        charLiteral.Format("\\u%04x", c);
-                        escapedValue.Append(charLiteral);
-                    }
-                    else
-                    {
-                        escapedValue.AppendChar((char)c);
-                    }
-                    break;
+            case '\\': escapedValue.Append("\\\\"); break;
+            case '\"': escapedValue.Append("\\\""); break;
+            case '/': escapedValue.Append("\\/"); break;
+            case '\b': escapedValue.Append("\\b"); break;
+            case '\f': escapedValue.Append("\\f"); break;
+            case '\n': escapedValue.Append("\\n"); break;
+            case '\r': escapedValue.Append("\\r"); break;
+            case '\t': escapedValue.Append("\\t"); break;
+            default:
+                if (c < 0x20 || c > 0x7e)
+                {
+                    CStringA charLiteral;
+                    charLiteral.Format("\\u%04x", c);
+                    escapedValue.Append(charLiteral);
+                }
+                else
+                {
+                    escapedValue.AppendChar((char)c);
+                }
+                break;
             }
         }
 
         return escapedValue;
+    }
+
+    std::string GetBindingHostName()
+    {
+        LPTSTR cpName = new TCHAR[MAX_COMPUTERNAME_LENGTH + 1];
+        LPDWORD lpnSize = new DWORD;
+        GetComputerName((cpName), lpnSize);
+
+        return CT2A(cpName);
     }
 }
