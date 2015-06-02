@@ -33,6 +33,14 @@
             overflow-x: hidden;
         }
 
+        #optionsContainer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            padding: 2px;
+            width: 40px;
+        }
+
         .headerImg {
             background-position: 0 0;
             background-size: 56px;
@@ -97,16 +105,53 @@
             font-weight: bold;
             font-size: large;
         }
-        
+
         .url {
             float: left;
             padding-left: 200px;
             margin-top: -80px;
         }
 
+        .toggleIcon {
+            display: inline-block;
+            background-repeat: no-repeat;
+            cursor: pointer;
+            width: 9px;
+            height: 15px;
+        }
+
+        .toggleIconOn {
+            background-position-y: 0;
+        }
+
+            .toggleIconOn:hover {
+                background-position-y: -15px;
+            }
+
+        .toggleIconOff {
+            background-position-y: -15px;
+        }
+
+            .toggleIconOff:hover {
+                background-position-y: 0;
+            }
+
+        #remoteFrontendToggle {
+            background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAkAAAAeCAIAAABxIKNkAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAYdEVYdFNvZnR3YXJlAHBhaW50Lm5ldCA0LjAuNWWFMmUAAAFpSURBVDhPpZFPSwJBFMD3KN48+BnEjyB46iBLl6APUKCgl+hW98QS+7OHAhFiIQuULrpBeAgMWkgILOygu0Tpwiy7azNvPkOz7uiY4skfj5333m/ezC4rlRpk75pslfDGEY/tM7yvktMmkWat5fAdpXSMqWmxlXq//pMh3NM7sHDGtNomyJ1z/SHcPRM2+vgGL5/gm5lj238QfHzRex0IV3NnIhdu2jC0g76PcM0OdPpBk8PdN4LGK0wP44i5BcEQbpk13aqQzjU4qJKdSywf+/XmCd69woe35OIBpHQ6nUgkIpGINCUajSaTyUwmw+uVsJs9z+v1eixxHGfyKlS4er1eq9UQQoVCYTQaCdftdovFouu6qqpqmjYZmzrbtg3D0HVdURSM+edyxzLLsvL5vGmagWAIV6lUWq1W0A3gbjAYlMtl+P+XuGPZgmAIt8yabiXZbDaVSsVisVAoxMpwOByPx2VZzuVyf1qcCLx4obfdAAAAAElFTkSuQmCC');
+        }
+
+        #gearIcon {
+            display: inline-block;
+            margin-left: 2px;
+            width: 16px;
+            height: 16px;
+            background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAYdEVYdFNvZnR3YXJlAHBhaW50Lm5ldCA0LjAuNWWFMmUAAAEQSURBVDhPldNLSgNBEIDhPoCbCIKEbF25zQEEr+AFPJDxcYcQQcEjiAgS17px4UYQBdFFVorP/w/dQ/ekTUjBB6mamuqemU6YE8f4jU4tLIoVHGB9moVwjTTg1gLRwyHsLcLCJWx+xjZeYq537OA15vYWQ1w5Neu7ldccoQm3/YRaY80bfJwitvCFvPEzymvaRRNDXOAe+QDr3cjf+YAf2H+G4kLiqt6Ywt+1nahaXGqA2zvHHT6QLsx7BD/rDU7QxCYmyBtdtbayZ6KIVfhS2o3/8UAVn3GAdoNvOq+57Tz3SDeRH2XfxQYeYy6Pdx8PMZ85yoaFPXSmWQhXSAPGFog17GPm5lqMkAb4165ECH8ZMZt/6o/hugAAAABJRU5ErkJggg==');
+        }
     </style>
     <script>
         var chooser = {
+            remoteFrontend: false,
+
             animateTitleStart: function (titleNode) {
                 titleNode.style.height = "60px";
                 titleNode.style.whiteSpace = "normal"
@@ -155,7 +200,11 @@
             selectTarget: function (id) {
                 var websocket = window.pages[id].webSocketDebuggerUrl;
                 var link = websocket.substring(5);
-                window.location.href = "http://localhost:9223/devtools/inspector.html?ws=" + link;
+                var params = "";
+                if (chooser.remoteFrontend) {
+                    params += "&remoteFrontend=true";
+                }
+                window.location.href = "http://localhost:9223/devtools/inspector.html?ws=" + link + params;
             },
 
             addTarget: function (id, pageInfo) {
@@ -228,12 +277,42 @@
             }
             xhr.open('GET', 'json/list', true);
             xhr.send(null);
+
+            function setRemoteFrontendToggleTo(toggleToState) {
+                window.localStorage.setItem("remoteFrontend", toggleToState);
+                if (toggleToState) {
+                    remoteFrontendToggle.classList.remove("toggleIconOff");
+                    remoteFrontendToggle.classList.add("toggleIconOn");
+                    chooser.remoteFrontend = true;
+                    remoteFrontendToggle.setAttribute("title", "Toggle remote front end. Currently enabled.");
+                } else {
+                    remoteFrontendToggle.classList.remove("toggleIconOn");
+                    remoteFrontendToggle.classList.add("toggleIconOff");
+                    chooser.remoteFrontend = false;
+                    remoteFrontendToggle.setAttribute("title", "Toggle remote front end. Currently disabled.");
+                }
+            }
+
+            var remoteFrontendToggle = document.querySelector("#remoteFrontendToggle")
+            remoteFrontendToggle.addEventListener("click", function () {
+                setRemoteFrontendToggleTo(!chooser.remoteFrontend);
+            });
+
+            if (JSON.parse(window.localStorage.getItem("remoteFrontend"))) {
+                setRemoteFrontendToggleTo(true);
+            } else {
+                setRemoteFrontendToggleTo(false);
+            }
         });
     </script>
 </head>
 <body>
     <div id="grid">
         <div id="headerTitle">Choose a target to debug</div>
+        <div id="optionsContainer">
+            <div id="remoteFrontendToggle" class="toggleIcon"></div>
+            <div id="gearIcon"></div>
+        </div>
         <div id="targets"></div>
     </div>
 </body>
