@@ -32,7 +32,7 @@ m_port(9222)
     m_server.listen("0.0.0.0", port.str());
     m_server.start_accept();
 
-    cout << "Proxy server listening on " << port.str() << "..." << endl;
+    cout << "Proxy server listening on port " << port.str() << "..." << endl;
 }
 
 // WebSocket Callbacks
