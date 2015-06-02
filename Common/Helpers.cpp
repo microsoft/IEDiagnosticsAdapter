@@ -293,13 +293,4 @@ namespace Helpers
 
         return escapedValue;
     }
-
-    std::string GetBindingHostName()
-    {
-        LPTSTR cpName = new TCHAR[MAX_COMPUTERNAME_LENGTH + 1];
-        LPDWORD lpnSize = new DWORD;
-        GetComputerName((cpName), lpnSize);
-
-        return CT2A(cpName);
-    }
 }

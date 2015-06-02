@@ -24,8 +24,6 @@ m_port(9222)
     m_server.set_validate_handler(std::bind(&WebSocketHandler::OnValidate, this, std::placeholders::_1));
     m_server.set_message_handler(std::bind(&WebSocketHandler::OnMessage, this, std::placeholders::_1, std::placeholders::_2));
     m_server.set_close_handler(std::bind(&WebSocketHandler::OnClose, this, std::placeholders::_1));
-    
-    std::string hostname = Helpers::GetBindingHostName();
 
     stringstream port;
     port << m_port;
@@ -34,7 +32,7 @@ m_port(9222)
     m_server.listen("0.0.0.0", port.str());
     m_server.start_accept();
 
-    cout << "Proxy server listening on " << hostname << ":" << port.str() << "..." << endl;
+    cout << "Proxy server listening on " << port.str() << "..." << endl;
 }
 
 // WebSocket Callbacks
