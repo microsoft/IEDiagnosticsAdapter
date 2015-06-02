@@ -193,7 +193,7 @@ module Proxy {
                             disabled: styleSheet.disabled,
                             sourceURL: styleSheet.href,
                             title: styleSheet.title,
-                            frameId: Common.getiframeID(doc),
+                            frameId: Common.getiframeId(doc),
                             isInline: "false", // todo: see if there is a way to get this data from IE
                             startLine: "0",
                             startColumn: "0",
@@ -353,7 +353,7 @@ module Proxy {
         }
        
         /**
-         * Does the same thing as createChromeNodeFromIENode but also recursively converts child nodes. 
+         * Converts the nodes that exist in Internet Explorer to nodes that the Chrome Dev tools understand
          */
         private createChromeNodeFromIENode(ieNode: Node, depth: number): INode {
             var chromeNode: INode = {
@@ -384,14 +384,14 @@ module Proxy {
                     doc = doc.parentNode;
                 }
 
-                var response = Common.getValidWindow((<Document>doc).parentWindow, (<HTMLFrameElement>ieNode).contentWindow);
+                var response: getValidWindowResponse = Common.getValidWindow((<Document>doc).parentWindow, (<HTMLFrameElement>ieNode).contentWindow);
                 if (response.isValid) {
                     var frameDoc: Document = response.window.document;
                     if (!this._sentCSS.has(frameDoc)) {
                         this.styleSheetAdded(frameDoc);
                     }
 
-                    chromeNode.frameId = Common.getiframeID(frameDoc);
+                    chromeNode.frameId = Common.getiframeId(frameDoc);
                     chromeNode.contentDocument = {
                         nodeId: this.getNodeUid(frameDoc),
                         nodeType: frameDoc.nodeType,
@@ -650,7 +650,7 @@ module Proxy {
                 // Get a safe window
                 var frame = <HTMLIFrameElement>tags[i];
                 var view = Common.getDefaultView(rootDocument);
-                var result = Common.getValidWindow(view, frame.contentWindow);
+                var result: getValidWindowResponse = Common.getValidWindow(view, frame.contentWindow);
                 if (result.isValid) {
                     // Compare the documents
                     if (result.window.document === findDocument) {

@@ -158,16 +158,16 @@ module Proxy {
             return processedResult;
         }
 
-        private getResourceTreeRecursive(doc: Document, parentFrameID: string = ""): IWebKitResult {
+        private getResourceTreeRecursive(doc: Document, parentFrameId: string = ""): IWebKitResult {
             // Casting to any as the default lib.d.ts does not have it on the Location object    
             var securityOrigin = (<any>doc.parentWindow.location).origin || "";
-            var frameID = Common.getiframeID(doc);
+            var frameId = Common.getiframeId(doc);
 
             // frame id is xxxx.1, loader id is xxxx.2
-            var loaderId: string = frameID.substring(0, frameID.length - 1) + "2";
+            var loaderId: string = frameId.substring(0, frameId.length - 1) + "2";
             var frameinfo: any = {
                 frame: {
-                    id: frameID,
+                    id: frameId,
                     loaderId: loaderId,
                     url: doc.parentWindow.location.href,
                     mimeType: "text/html", // todo: doc.mimetype is "HTM File", if documents ever have a different mimetype figure out how to get it dynamicly
@@ -176,8 +176,8 @@ module Proxy {
                 resources: []
             };
 
-            if (parentFrameID !== "") {
-                frameinfo.frame.parentId = parentFrameID;
+            if (parentFrameId !== "") {
+                frameinfo.frame.parentId = parentFrameId;
                 frameinfo.frame.name = "frame";
             }
 
@@ -215,9 +215,9 @@ module Proxy {
             for (var i = 0, n = tags.length; i < n; i++) {
                 var frame = <HTMLIFrameElement>tags[i];
                 var view = Common.getDefaultView(doc);
-                var result = Common.getValidWindow(view, frame.contentWindow);
+                var result: getValidWindowResponse = Common.getValidWindow(view, frame.contentWindow);
                 if (result.isValid) {
-                    frameinfo.childFrames.push(this.getResourceTreeRecursive(result.window.document, frameID));
+                    frameinfo.childFrames.push(this.getResourceTreeRecursive(result.window.document, frameId));
                 }
             }
 

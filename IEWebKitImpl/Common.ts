@@ -7,26 +7,26 @@
 module Proxy.Common {
     "use strict";
 
-    var mapDocumentToFrameID: WeakMap<Document, string> = new WeakMap<Document, string>();
+    var mapDocumentToFrameId: WeakMap<Document, string> = new WeakMap<Document, string>();
     var nextAvailableFrameid: number = 1500.1;
 
-    export function getiframeID(doc: Document): string {
+    /* Gets the Id of the iframe where doc lives.
+     * @param doc The document to that lives in the iframe that gets returned
+     * @return frameId is the Id of the iframe where doc lives.
+     */
+    export function getiframeId(doc: Document): string {
         if (!doc || doc.nodeType !== NodeType.DocumentNode) {
             throw new Error("invalid node");
         }
 
-        if (mapDocumentToFrameID.has(doc)) {
-            return mapDocumentToFrameID.get(doc);
+        if (mapDocumentToFrameId.has(doc)) {
+            return mapDocumentToFrameId.get(doc);
         }
 
-        var frameID: number = nextAvailableFrameid;
+        var frameId: number = nextAvailableFrameid;
         nextAvailableFrameid = nextAvailableFrameid + 100;
-        mapDocumentToFrameID.set(doc, "" + frameID);
-        return "" + frameID;
-    }
-
-    export function hasiframeID(doc: Document): boolean {
-        return mapDocumentToFrameID.has(doc);
+        mapDocumentToFrameId.set(doc, "" + frameId);
+        return "" + frameId;
     }
 
     /* Safely validates the window and gets the valid cross-site window when appropriate.
@@ -34,7 +34,7 @@ module Proxy.Common {
      * @param obj The object to attempt to get a valid window out of.
      * @return .isValid is true if obj is a valid window and .window is obj or the cross-site window if necessary.
      */
-    export function getValidWindow(context: Window, obj: any): { isValid: boolean; window: Window; } {
+    export function getValidWindow(context: Window, obj: any): getValidWindowResponse {
         try {
             if (Object.prototype.toString.call(obj) === "[object Window]") {
                 var w = obj;
@@ -54,6 +54,10 @@ module Proxy.Common {
         return { isValid: false, window: null };
     }
 
+    /* Gets the Window containing the document.
+     * @param doc The document that we want a Window from
+     * @return Window The default view for doc.
+     */
     export function getDefaultView(doc: any): Window {
         if (doc) {
             if (typeof doc.defaultView !== "undefined") {
@@ -66,6 +70,11 @@ module Proxy.Common {
         return null;
     }
 
+    /* Creates a response to send back to the Chrome Dev Tools
+     * @param id The request id we are responding to
+     * @param value The IWebKitResult containing the bulk of the response
+     * @return response The response to send to the Chrome Dev Tools.
+     */
     export function createResponse(id: number, value: IWebKitResult): IWebKitResponse {
         var response: IWebKitResponse = {
             id: id
