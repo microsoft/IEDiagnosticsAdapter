@@ -26,17 +26,17 @@ module Proxy {
             this._windowExternal.sendMessage("postMessage", JSON.stringify(response));
         }
 
-        private alert(message: string): void {
-            this._windowExternal.sendMessage("alert", message);
-        }
-
-        private postNotification(method: string, params: any): void {
+        public postNotification(method: string, params: any): void {
             var notification = {
                 method: method,
                 params: params
             };
 
             this._windowExternal.sendMessage("postMessage", JSON.stringify(notification)); // todo: should this be postMessage?
+        }
+
+        private alert(message: string): void {
+            this._windowExternal.sendMessage("alert", message);
         }
 
         private messageHandler(e: any): void {

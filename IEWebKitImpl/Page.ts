@@ -44,8 +44,155 @@ module Proxy {
         }
     }
 
-    export class PageHandler implements IDomainHandler {
+    export class WebkitScreencastFrameMetadata implements IWebKitScreencastFrameMetadata {
+        public pageScaleFactor: number;
+        public offsetTop: number;
+        public deviceWidth: number;
+        public deviceHeight: number;
+        public scrollOffsetX: number;
+        public scrollOffsetY: number;
+
+        constructor(pageScaleFactor?: number, offsetTop?: number, deviceWidth?: number, deviceHeight?: number, scrollOffsetX?: number, scrollOffsetY?: number) {
+            this.pageScaleFactor = pageScaleFactor || 1;
+            this.offsetTop = offsetTop || 0;
+            this.deviceWidth = deviceWidth || 1;
+            this.deviceHeight = deviceHeight || 1;
+            this.scrollOffsetX = scrollOffsetX || 0;
+            this.scrollOffsetY = scrollOffsetX || 0;
+        }
+    }
+
+    export class WebkitScreencastFrame implements IWebKitScreencastFrame {
+        public data: string;
+        public metadata: IWebKitScreencastFrameMetadata;
+        public frameNumber: number;
+
+        constructor(frameNumber?: number, data?: string, pageScaleFactor?: number, offsetTop?: number, deviceWidth?: number, deviceHeight?: number, scrollOffsetX?: number, scrollOffsetY?: number) {
+            this.frameNumber = frameNumber;
+            this.data = data;
+            this.metadata = new WebkitScreencastFrameMetadata(pageScaleFactor, offsetTop, deviceWidth, deviceHeight, scrollOffsetX, scrollOffsetY);
+        }
+
+        public static captureFrame(frameNumber: number, callback: IWebKitScreencastFrameCallback): void {
+            var window = browser.document.parentWindow;
+            var pageScaleFactor = window.devicePixelRatio;
+            var offsetTop: number = window.document.body.offsetTop;
+            var deviceWidth: number = (window.innerWidth > 0) ? window.innerWidth : screen.width;
+            var deviceHeight: number = (window.innerHeight > 0) ? window.innerHeight : screen.height;
+            var scrollOffsetX: number = window.pageXOffset;
+            var scrollOffsetY: number = window.pageYOffset;
+            var blobData: Blob = browser.takeVisualSnapshot(deviceWidth, deviceHeight, true);
+            Common.convertBlobToBase64(blobData, (base64Data: string) => {
+                var frame: WebkitScreencastFrame = new WebkitScreencastFrame(frameNumber, base64Data, pageScaleFactor, offsetTop, deviceWidth, deviceHeight, scrollOffsetX, scrollOffsetY);
+                callback(frame);
+            });
+        }
+    }
+
+    export class WebkitRecordedFrame implements IWebKitRecordedFrame {
+        public data: string;
+        public timestamp: Date;
+
+        constructor(data?: string, timestamp?: Date) {
+            this.data = data;
+            this.timestamp = timestamp;
+        }
+
+        public static captureFrame(callback: IWebKitRecordedFrameCallback): void {
+            var window = browser.document.parentWindow;
+            var deviceWidth: number = (window.innerWidth > 0) ? window.innerWidth : screen.width;
+            var deviceHeight: number = (window.innerHeight > 0) ? window.innerHeight : screen.height;
+            var blobData: Blob = browser.takeVisualSnapshot(deviceWidth, deviceHeight, true);
+            var timestamp = new Date();
+            Common.convertBlobToBase64(blobData, (base64Data: string) => {
+                var frame: WebkitRecordedFrame = new WebkitRecordedFrame(base64Data, timestamp);
+                callback(frame);
+            });
+        }
+    }
+
+    export class ScreencastSession {
+        private _frameId: number;
+        private _framesAcked: boolean[];
+        private _frameInterval: number = 250; // 60 fps is 16ms
+        private _format: string;
+        private _quality: number;
+        private _maxWidth: number;
+        private _maxHeight: number;
+
+        constructor(format?: string, quality?: number, maxWidth?: number, maxHeight?: number) {
+            this._format = format || "jpg";
+            this._quality = quality || 100;
+            this._maxHeight = maxHeight || 1024;
+            this._maxWidth = maxWidth || 1024;
+        }
+
+        public dispose(): void {
+            this.stop();
+        }
+
+        public start(): void {
+            this._framesAcked = new Array();
+            this._frameId = 1; // CDT seems to be 1 based and won't ack when 0
+
+            setInterval(() => this.recordingLoop(), this._frameInterval);
+        }
+
+        public stop(): void {
+            (<any>clearInterval)(() => this.recordingLoop); // The diagnosticOM clearInterval doesn't take an ID it just takes the function pointer
+        }
+
+        public ackFrame(frameNumber: number): void {
+            this._framesAcked[frameNumber] = true;
+        }
+
+        private recordingLoop(): void {
+            WebkitScreencastFrame.captureFrame(this._frameId, function (frame: WebkitScreencastFrame): void {
+                browserHandler.postNotification("Page.screencastFrame", frame);
+            });
+            this._frameId++;
+        }
+    }
+
+    export class FrameRecorder {
+        private _frameBuffer: IWebKitRecordedFrame[];
+        private _frameInterval: number = 64; // 60 fps is 16ms
+        private _capturedFrames: number;
+        private _maxFrameCount: number;
+
         constructor() {
+        }
+
+        public start(maxFrameCount?: number): void {
+            this._maxFrameCount = maxFrameCount || 1000;
+            this._frameBuffer = new Array();
+            this._capturedFrames = 0;
+            setInterval(this.recordingLoop, this._frameInterval);
+        }
+
+        public stop(): IWebKitRecordedFrame[] {
+            (<any>clearInterval)(this.recordingLoop); // The diagnosticOM clearInterval doesn't take an ID it just takes the function pointer
+            return this._frameBuffer;
+        }
+
+        private recordingLoop(): void {
+            WebkitRecordedFrame.captureFrame((frame: WebkitRecordedFrame) => function (frame: WebkitRecordedFrame): void {
+                // Assumes the frames are coming back in order... (even though they are async)
+                if (this.capturedFrames < this.maxFrameCount) {
+                    // Todo: Figure out if the implementation is meant to be a FIFO bufffer
+                    this.frameBuffer.push(frame);
+                    this.capturedFrames++;
+                }
+            });
+        }
+    }
+
+    export class PageHandler implements IDomainHandler {
+        private _screencastSession: ScreencastSession;
+        private _frameRecorder: FrameRecorder;
+
+        constructor() {
+            this._frameRecorder = new FrameRecorder();
         }
 
         public processMessage(method: string, request: IWebKitRequest): void {
@@ -73,7 +220,31 @@ module Proxy {
                     break;
 
                 case "canScreencast":
-                    processedResult = { result: false };
+                    processedResult = {
+                        result: {
+                            result: true
+                        }
+                    };
+                    break;
+
+                case "screencastFrameAck":
+                    processedResult = this.screencastFrameAck(request);
+                    break;
+
+                case "startRecordingFrames":
+                    processedResult = this.startRecordingFrames(request);
+                    break;
+
+                case "stopRecordingFrames":
+                    processedResult = this.stopRecordingFrames(request);
+                    break;
+
+                case "startScreencast":
+                    processedResult = this.startScreencast(request);
+                    break;
+
+                case "stopScreencast":
+                    processedResult = this.stopScreencast();
                     break;
 
                 case "canEmulate":
@@ -88,12 +259,140 @@ module Proxy {
                     processedResult = { result: { playbackRate: 1 } };
                     break;
 
+                case "reload":
+                    processedResult = this.reload();
+                    break;
+
                 default:
                     processedResult = null;
                     break;
             }
 
             browserHandler.postResponse(request.id, processedResult);
+        }
+
+        private reload(): IWebKitResult {
+            var processedResult: IWebKitResult = {};
+
+            try {
+                browser.refresh();
+            } catch (ex) {
+                processedResult = {
+                    error: ex
+                };
+            }
+
+            return processedResult;
+        }
+
+        private startScreencast(request: IWebKitRequest): IWebKitResult {
+            var processedResult: IWebKitResult = {};
+
+            try {
+                var format: string = request.params.format;
+                var quality: number = request.params.quality;
+                var maxWidth: number = request.params.maxWidth;
+                var maxHeight: number = request.params.maxHeight;
+
+                if (this._screencastSession) {
+                    // Session has already started so disposing of the last one.
+                    this._screencastSession.dispose();
+                } 
+
+                this._screencastSession = new ScreencastSession(format, quality, maxWidth, maxHeight);
+                this._screencastSession.start();
+            } catch (ex) {
+                processedResult = {
+                    error: ex
+                };
+            }
+
+            return processedResult;
+        }
+
+        private stopScreencast(): IWebKitResult {
+            var processedResult: IWebKitResult = {};
+
+            try {
+                if (!this._screencastSession) {
+                    throw new Error("Screencast session not started.");
+                }
+
+                this._screencastSession.stop();
+            } catch (ex) {
+                processedResult = {
+                    error: ex
+                };
+            }
+
+            return processedResult;
+        }
+
+        private screencastFrame(): IWebKitResult {
+            var processedResult: IWebKitResult = {};
+
+            try {
+                if (!this._screencastSession) {
+                    throw new Error("Screencast session not started.");
+                }
+            } catch (ex) {
+                processedResult = {
+                    error: ex
+                };
+            }
+
+            return processedResult;
+        }
+
+        private screencastFrameAck(request: IWebKitRequest): IWebKitResult {
+            var processedResult: IWebKitResult = {};
+
+            try {
+                var frameNumber: number = request.params.frameNumber;
+
+                this._screencastSession.ackFrame(frameNumber);
+            } catch (ex) {
+                processedResult = {
+                    error: ex
+                };
+            }
+
+            return processedResult;
+        }
+
+        private startRecordingFrames(request: IWebKitRequest): IWebKitResult {
+            var processedResult: IWebKitResult = {};
+
+            try {
+                var maxFrameCount: number = request.params.maxFrameCount;
+                this._frameRecorder.start(maxFrameCount);
+            } catch (ex) {
+                processedResult = {
+                    error: ex
+                };
+            }
+
+            return processedResult;
+        }
+
+        private stopRecordingFrames(request: IWebKitRequest): IWebKitResult {
+            var processedResult: IWebKitResult = {};
+
+            try {
+                var frames: IWebKitRecordedFrame[] = this._frameRecorder.stop();
+
+                processedResult = {
+                    result: {
+                        frames: frames
+                    }
+                };
+            } catch (ex) {
+                processedResult = {
+                    error: ex
+                };
+            }
+
+            return processedResult;
         }
 
         private getCookies(): IWebKitResult {

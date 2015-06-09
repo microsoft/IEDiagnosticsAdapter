@@ -29,7 +29,7 @@ m_port(9222)
     port << m_port;
 
     m_server.init_asio();
-    m_server.listen("127.0.0.1", port.str());
+    m_server.listen("0.0.0.0", port.str());
     m_server.start_accept();
 
     cout << "Proxy server listening on port " << port.str() << "..." << endl;

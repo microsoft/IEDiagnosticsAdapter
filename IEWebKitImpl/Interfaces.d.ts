@@ -88,6 +88,38 @@ declare module Proxy {
         session: boolean;
     }
 
+    interface IWebKitScreencastFrame {
+        data: string;
+        metadata: IWebKitScreencastFrameMetadata;
+        frameNumber: number;
+    }
+
+    interface IWebKitScreencastFrameMetadata {
+        pageScaleFactor: number;
+        offsetTop: number;
+        deviceWidth: number;
+        deviceHeight: number;
+        scrollOffsetX: number;
+        scrollOffsetY: number;
+    }
+
+    interface IWebKitScreencastFrameCallback {
+        (frame: IWebKitScreencastFrame): any;
+    }
+
+    interface IWebKitRecordedFrame {
+        data: string;
+        timestamp: Date;
+    }
+
+    interface IWebKitRecordedFrameCallback {
+        (frame: IWebKitRecordedFrame): any;
+    }
+
+    interface IConvertBlobToBase64Callback {
+        (base64: string): any;   
+    }
+
     interface IDomainHandler {
         processMessage(method: string, request: IWebKitRequest): void;
     }
