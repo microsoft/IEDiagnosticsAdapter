@@ -124,7 +124,7 @@ declare module Proxy {
         processMessage(method: string, request: IWebKitRequest): void;
     }
 
-    interface getValidWindowResponse {
+    interface IgetValidWindowResponse {
         isValid: boolean;
         window: Window;
     }

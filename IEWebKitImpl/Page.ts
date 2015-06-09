@@ -514,7 +514,7 @@ module Proxy {
             for (var i = 0, n = tags.length; i < n; i++) {
                 var frame = <HTMLIFrameElement>tags[i];
                 var view = Common.getDefaultView(doc);
-                var result: getValidWindowResponse = Common.getValidWindow(view, frame.contentWindow);
+                var result: IgetValidWindowResponse = Common.getValidWindow(view, frame.contentWindow);
                 if (result.isValid) {
                     frameinfo.childFrames.push(this.getResourceTreeRecursive(result.window.document, frameId));
                 }

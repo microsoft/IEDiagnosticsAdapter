@@ -19,7 +19,6 @@ module Proxy {
         private _nextAvailableStyleSheetUid: number;
         private _sentCSS: WeakMap<Document, boolean>; // using a WeakMap as a WeakSet because IE11 does not support WeakSet
         private _mapStyleSheetToStyleSheetID: WeakMap<StyleSheet, number>;
-
         private _inspectModeEnabled: boolean;
         private _selectElementHandler: (event: Event) => void;
         private _hoverElementHandler: (event: Event) => void;
@@ -384,7 +383,7 @@ module Proxy {
                     doc = doc.parentNode;
                 }
 
-                var response: getValidWindowResponse = Common.getValidWindow((<Document>doc).parentWindow, (<HTMLFrameElement>ieNode).contentWindow);
+                var response: IgetValidWindowResponse = Common.getValidWindow((<Document>doc).parentWindow, (<HTMLFrameElement>ieNode).contentWindow);
                 if (response.isValid) {
                     var frameDoc: Document = response.window.document;
                     if (!this._sentCSS.has(frameDoc)) {
@@ -650,7 +649,7 @@ module Proxy {
                 // Get a safe window
                 var frame = <HTMLIFrameElement>tags[i];
                 var view = Common.getDefaultView(rootDocument);
-                var result: getValidWindowResponse = Common.getValidWindow(view, frame.contentWindow);
+                var result: IgetValidWindowResponse = Common.getValidWindow(view, frame.contentWindow);
                 if (result.isValid) {
                     // Compare the documents
                     if (result.window.document === findDocument) {
