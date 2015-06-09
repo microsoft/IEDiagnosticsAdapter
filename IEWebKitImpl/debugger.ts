@@ -139,17 +139,6 @@ module Proxy {
         objectName: string;
     }
 
-    interface IProxyDispatch {
-        alert(message: string): void;
-        postMessage(message: string): void;
-        addEventListener(type: string, listener: Function): void;
-        addEventListener(type: "onmessage", listener: (data: string) => void): void;
-    }
-
-    interface IProxyDebuggerDispatch extends IProxyDispatch {
-        postMessageToEngine(id: string, isAtBreakpoint: boolean, data: string): void;
-    }
-
     interface IDebuggerDispatch {
         addEventListener(type: string, listener: Function): void;
         addEventListener(type: "onAddDocuments", listener: (documents: IDocument[]) => void): void;
@@ -217,14 +206,12 @@ module Proxy {
         private _isEnabled: boolean;
         private _documentMap: Map<string, number>;
         private _lineEndingsMap: Map<number, number[]>;
-        private _firstrun: boolean;
 
         constructor() {
             this._debugger = debug;
             this._isAtBreakpoint = false;
             this._documentMap = new Map<string, number>();
             this._lineEndingsMap = new Map<number, number[]>();
-            this._firstrun = true;
 
             // Hook up notifications
             this._debugger.addEventListener("onAddDocuments", (documents: IDocument[]) => this.onAddDocuments(documents));
@@ -274,7 +261,7 @@ module Proxy {
                 var textResult = text || this._debugger.getSourceText(docId).text;
                 if (textResult) {
                     var total = [];
-                    var lines = textResult.split("\r\n");
+                    var lines = textResult.split(/\r\n|\n|\r/);
                     for (var i = 0; i < lines.length; i++) {
                         total.push(lines[i].length + 2);
                     }
@@ -433,16 +420,6 @@ module Proxy {
             }
 
             this.postResponse(request.id, processedResult);
-
-            if (method === "enable") {
-                // Rundown the frames, now that we have been enabled
-                this.postNotification("Runtime.executionContextCreated", {
-                    context: {
-                        frameId: "1500.1",
-                        id: 1
-                    }
-                });
-            }
         }
 
         private processDebugger(method: string, request: IWebKitRequest): void {
@@ -612,12 +589,6 @@ module Proxy {
         }
 
         private onAddDocuments(documents: IDocument[]): void {
-            if (this._firstrun) {
-                this._firstrun = false;
-                // This hack tells the Chrome dev tools that we are ready to receive console messages. This will be refactored when I get around to implementing the rest of console functionality
-                host.postMessage("{ \"method\": \"Runtime.executionContextCreated\", \"params\": { \"context\": { \"id\": 1, \"isPageContext\": true, \"name\": \"\", \"origin\": \"\", \"frameId\": \"10700.1\" } } }");
-            }
-
             for (var i = 0; i < documents.length; i++) {
                 var document: IDocument = documents[i];
                 this._documentMap.set(document.url, document.docId);

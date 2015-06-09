@@ -190,9 +190,11 @@ module Proxy {
     export class PageHandler implements IDomainHandler {
         private _screencastSession: ScreencastSession;
         private _frameRecorder: FrameRecorder;
+        private _nextContextID: number;
 
         constructor() {
             this._frameRecorder = new FrameRecorder();
+            this._nextContextID = 1;
         }
 
         public processMessage(method: string, request: IWebKitRequest): void {
@@ -469,7 +471,7 @@ module Proxy {
                     id: frameId,
                     loaderId: loaderId,
                     url: doc.parentWindow.location.href,
-                    mimeType: "text/html", // todo: doc.mimetype is "HTM File", if documents ever have a different mimetype figure out how to get it dynamicly
+                    mimeType: "text/html", // todo: doc.mimetype is "HTM File", if documents ever have a different mimeType figure out how to get it dynamically
                     securityOrigin: securityOrigin
                 },
                 resources: []
@@ -485,10 +487,11 @@ module Proxy {
                 Assert.areEqual(doc.scripts[i].tagName, "SCRIPT");
                 var script: HTMLScriptElement = <HTMLScriptElement>doc.scripts[i];
                 if (script.src) {
+                    var mimeType = (mimeType !== "" ? script.type : "application/javascript");
                     frameinfo.resources.push({
                         url: script.src,
                         type: script.localName,
-                        mimeType: script.type
+                        mimeType: mimeType
                     });
                 }
             }
@@ -500,7 +503,7 @@ module Proxy {
                         url: styleSheet.href,
                         type: "Stylesheet",
                         mimeType: styleSheet.type
-                        // todo: chrome somtimes adds a failed node here, figure out why/what it is used for
+                        // todo: chrome sometimes adds a failed node here, figure out why/what it is used for
                     });
                 }
             }
@@ -520,12 +523,22 @@ module Proxy {
                 }
             }
 
+            // notify the Chrome dev tools that this frame is ready to receive console messages.
+            var executionContextCreatedParams = {
+                context: {
+                    id: this._nextContextID++,
+                    name: "", // I think that this field is only needed for Addons, which IE Does not support.
+                    origin: "",
+                    frameId: frameId
+                }
+            };
+
+            browserHandler.postNotification("Runtime.executionContextCreated", executionContextCreatedParams);
             return frameinfo;
         }
 
         private getResourceTree(request: IWebKitRequest): IWebKitResult {
             var processedResult: IWebKitResult = {};
-
             try {
                 processedResult = {
                     result: {

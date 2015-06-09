@@ -128,4 +128,15 @@ declare module Proxy {
         isValid: boolean;
         window: Window;
     }
+
+    interface IProxyDispatch {
+        alert(message: string): void;
+        postMessage(message: string): void;
+        addEventListener(type: string, listener: Function): void;
+        addEventListener(type: "onmessage", listener: (data: string) => void): void;
+    }
+
+    interface IProxyDebuggerDispatch extends IProxyDispatch {
+        postMessageToEngine(id: string, isAtBreakpoint: boolean, data: string): void;
+    }
 } 
