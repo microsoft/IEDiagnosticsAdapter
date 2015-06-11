@@ -557,20 +557,18 @@ module Proxy {
         private debuggerEnable(id: number): void {
             if (!this._isEnabled && !this._isAwaitingDebuggerEnableCall) {
                 var listener = (succeeded: boolean) => {
-                    var connectionResult = (succeeded ? ConnectionResult.Succeeded : ConnectionResult.Failed);
-
                     this._debugger.removeEventListener("debuggingenabled", listener);
                     this._isAwaitingDebuggerEnableCall = false;
                     if (succeeded) {
                         // Now that we have enabled debugging, try to connect to the target
-                        connectionResult = this._debugger.connect(/*enabled=*/ true);
+                        var connectionResult = this._debugger.connect(/*enabled=*/ true);
 
                         if (connectionResult === ConnectionResult.Succeeded) {
                             this._isEnabled = true;
                         }
                     }
 
-                    this.postResponse(id, { result: connectionResult });
+                    this.postResponse(id, { result: {} });
                 };
                 this._debugger.addEventListener("debuggingenabled", listener);
 
@@ -579,7 +577,7 @@ module Proxy {
                 this._debugger.enable();
             } else {
                 // Already connected, so return success
-                this.postResponse(id, { result: ConnectionResult.Succeeded });
+                this.postResponse(id, { result: {} });
             }
         }
 

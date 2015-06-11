@@ -18,6 +18,10 @@ module Proxy {
         private _elementHighlightColor: any;
         private _nextAvailableStyleSheetUid: number;
         private _sentCSS: WeakMap<Document, boolean>; // using a WeakMap as a WeakSet because IE11 does not support WeakSet
+
+        // This keeps track of which nodes the Chrome Dev tools knows about. Any ID in _sentNodeIds the Chrome tools know about and know the parent chain up to the root document.
+        // This is needed for the inspect element button so we can find the closet parent to the inspected element that the chrome tools know about.
+        private _sentNodeIds: Set<number>;
         private _mapStyleSheetToStyleSheetID: WeakMap<StyleSheet, number>;
         private _inspectModeEnabled: boolean;
         private _selectElementHandler: (event: Event) => void;
@@ -27,6 +31,7 @@ module Proxy {
             this._mapUidToNode = new Map<number, Node>(); // todo: This keeps nodes alive, which causes a memmory leak if the website is trying to remove nodes
             this._mapNodeToUid = new WeakMap<Node, number>();
             this._sentCSS = new WeakMap<Document, boolean>();
+            this._sentNodeIds = new Set<number>();
 
             this._mapStyleSheetToStyleSheetID = new WeakMap<StyleSheet, number>();
 
@@ -91,6 +96,10 @@ module Proxy {
                     processedResult = this.getComputedStyleForNode(request);
                     break;
 
+                case "pushNodesByBackendIdsToFrontend":
+                    processedResult = this.pushNodesByBackendIdsToFrontend(request);
+                    break;
+
                 default:
                     processedResult = {};
                     processedResult.result = {};
@@ -124,11 +133,12 @@ module Proxy {
             return this._mapUidToNode.get(nodeUID);
         }
 
-        private selectElementHandler(event: Event): void {
-            var target: Element = <Element>event.target;
-            if (target) {
-                this.highlightNode(target);
-            }
+        private pushNodesByBackendIdsToFrontend(request: IWebKitRequest): IWebKitResult {
+            var processedResult: IWebKitResult = {};
+
+            var targetId: number = request.params.backendNodeIds[0];
+            Assert.hasValue(targetId);
+            var target: Element = <Element>this.getNode(targetId);
 
             // expand the dom up to the selected node, starting from the closest parent the Chrome Dev Tools knows about
             var chain: Node[] = this.findParentChainForElement(target).reverse();
@@ -136,7 +146,7 @@ module Proxy {
             // chain[0] is the root document and [length-1] is target. We want to send setChildNodes notifications starting from the closest parent of target that chrome knows about
             var startIndex: number = chain.length;
             for (var i = 0; i < chain.length; i++) {
-                if (!this._mapNodeToUid.has(chain[i])) {
+                if (!this._sentNodeIds.has(this.getNodeUid(chain[i]))) {
                     startIndex = i - 1;
                     break;
                 }
@@ -145,14 +155,28 @@ module Proxy {
             if (startIndex !== chain.length) {
                 chain.pop(); // we don't want to send a setChildNodes notification for the selected element, only it's parents
                 for (var i = startIndex; i < chain.length; i++) {
-                    this.setChildNodes(this.getNodeUid(chain[i]));      
+                    this.setChildNodes(this.getNodeUid(chain[i]));
                 }
+            }
+
+            processedResult = {
+                result: {
+                    nodeIds: [targetId]
+                }
+            };
+            return processedResult;
+        }
+
+        private selectElementHandler(event: Event): void {
+            var target: Element = <Element>event.target;
+            if (target) {
+                this.highlightNode(target);
             }
 
             var response: any = {
                 method: "DOM.inspectNodeRequested",
                 params: {
-                    nodeId: this.getNodeUid(target)
+                    backendNodeId: this.getNodeUid(target)
                 }
             };
 
@@ -405,6 +429,10 @@ module Proxy {
                 }
             }
 
+            // currently any time createChromeNodeFromIENode is called, we are sending the resault to the chrome dev tools and the chrome dev tools know the entire parent chain from chromeNode to the root document
+            // if this changes in the future, we will need to only add this id to _sentNodeIds if we are telling chrome about the node.
+            this._sentNodeIds.add(this.getNodeUid(ieNode));
+
             // now recusively add children to chromeNode
             if (this.numberOfNonWhitespaceChildNodes(ieNode) > 0) {
                 chromeNode.childNodeCount = this.numberOfNonWhitespaceChildNodes(ieNode);
@@ -443,7 +471,7 @@ module Proxy {
         private setChildNodes(id: number): any {
             var ieNode: Node = this.getNode(id);
             var nodeArray: INode[] = [];
-
+            this._sentNodeIds.add(id);
             // loop over all nodes, ignoring whitespace nodes
             for (var i = 0; i < ieNode.childNodes.length; i++) {
                 if (!this.isWhitespaceNode(ieNode.childNodes[i])) {
@@ -474,6 +502,8 @@ module Proxy {
                 baseURL: browser.document.URL, // fixme: this line or the above line is probably not right
                 xmlVersion: browser.document.xmlVersion,
             };
+
+            this._sentNodeIds.add(1);
 
             if (!this._mapUidToNode.has(1)) {
                 this._mapUidToNode.set(1, browser.document);
