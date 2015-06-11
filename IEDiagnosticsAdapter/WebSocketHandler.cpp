@@ -72,14 +72,18 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
             CStringA guid(guidBSTR);
             guid = guid.Mid(1, guid.GetLength() - 2);
 
+			stringstream wsUrlSS;
+			wsUrlSS << "ws://" << con->get_host() << ":" << con->get_port() << "/devtools/page/" << guid;
+			std::string wsUrl = wsUrlSS.str();
+
             ss << "{" << endl;
             ss << "   \"description\" : \"" << fileName.MakeLower() << "\"," << endl;
-            ss << "   \"devtoolsFrontendUrl\" : \"\"," << endl;
+            ss << "   \"devtoolsFrontendUrl\" : \"http://localhost:9223/devtools/inspector.html?ws=" << wsUrl << "\"," << endl;
             ss << "   \"id\" : \"" << guid << "\"," << endl;
             ss << "   \"title\" : \"" << title << "\"," << endl;
             ss << "   \"type\" : \"page\"," << endl;
             ss << "   \"url\" : \"" << url << "\"," << endl;
-            ss << "   \"webSocketDebuggerUrl\" : \"ws://" << con->get_host() << ":" << con->get_port() << "/devtools/page/" << guid << "\"" << endl;
+            ss << "   \"webSocketDebuggerUrl\" : \"" << wsUrl << "\"" << endl;
             ss << "}";
 
             if (index < m_instances.size() - 1)
