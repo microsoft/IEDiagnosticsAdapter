@@ -40,7 +40,7 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
 {
     server::connection_ptr con = m_server.get_con_from_hdl(hdl);
 
-    stringstream ss;
+    std::stringstream ss;
     if (con->get_resource() == "/")
     {
         // Load and return the html selection page
@@ -72,7 +72,7 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
             CStringA guid(guidBSTR);
             guid = guid.Mid(1, guid.GetLength() - 2);
 
-			stringstream wsUrlSS;
+			std::stringstream wsUrlSS;
 			wsUrlSS << "ws://" << con->get_host() << ":" << con->get_port() << "/devtools/page/" << guid;
 			std::string wsUrl = wsUrlSS.str();
 
