@@ -271,6 +271,7 @@ namespace Helpers
             {
                 case '\\': escapedValue.Append("\\\\"); break;
                 case '\"': escapedValue.Append("\\\""); break;
+                case '/': escapedValue.Append("\\/"); break;
                 case '\b': escapedValue.Append("\\b"); break;
                 case '\f': escapedValue.Append("\\f"); break;
                 case '\n': escapedValue.Append("\\n"); break;
@@ -292,15 +293,6 @@ namespace Helpers
         }
 
         return escapedValue;
-    }
-
-    std::string GetBindingHostName()
-    {
-        LPTSTR cpName = new TCHAR[MAX_COMPUTERNAME_LENGTH + 1];
-        LPDWORD lpnSize = new DWORD;
-        GetComputerName((cpName), lpnSize);
-
-        return CT2A(cpName);
     }
 
     CStringA GetFileVersion(_In_ LPCSTR filePath)

@@ -61,10 +61,7 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
     {
         // Enumerate the running IE instances
         this->PopulateIEInstances();
-
-        // Fetch the hostname for the devtools frontend
-        std::string strHostname(Helpers::GetBindingHostName());
-
+        
         // Return a json array describing the instances
         size_t index = 0;
         ss << "[";
@@ -90,7 +87,7 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
             CStringA webSocketDebuggerUrl = Helpers::EscapeJsonString(CString(strWebSocketDebuggerUrl.c_str()));
 
             std::string strDevtoolsFrontendUrl("http://");
-            strDevtoolsFrontendUrl += strHostname;
+            strDevtoolsFrontendUrl += con->get_host();
             strDevtoolsFrontendUrl += ":";
             strDevtoolsFrontendUrl += "9223"; // The remote port for the hidden Chrome instance that serves the tools
             strDevtoolsFrontendUrl += "/devtools/inspector.html?";
