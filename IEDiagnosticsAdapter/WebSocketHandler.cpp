@@ -117,18 +117,21 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
         // To do: This will need to change to support Edge 
         CStringA ieVersion = Helpers::GetFileVersion("C:\\Windows\\System32\\mshtml.dll");
         CStringA browser = "Internet Explorer " + ieVersion;
+        browser = Helpers::EscapeJsonString(CString(browser));
 
-        CStringA userAgent;
-        DWORD dwSize;
-        InternetQueryOptionA(NULL, INTERNET_OPTION_USER_AGENT, NULL, &dwSize);
-        
-        char *lpszData;
-        lpszData = new char[dwSize];
-        InternetQueryOptionA(NULL, INTERNET_OPTION_USER_AGENT, lpszData, &dwSize);
 
-        userAgent = lpszData;
+        DWORD dwUASize = 0;
+        UrlMkGetSessionOption(URLMON_OPTION_USERAGENT, nullptr, 0, &dwUASize, 0);
 
-        delete[] lpszData;
+        // Allocate string for current user agent:
+        string strUserAgent(dwUASize, '\0');
+
+        // Get current user agent:
+        PSTR pszUserAgent = const_cast<PSTR>(strUserAgent.c_str()); 
+        DWORD dwUASizeOut = 0;
+        UrlMkGetSessionOption(URLMON_OPTION_USERAGENT, pszUserAgent, dwUASize, &dwUASizeOut, 0); // Don't check return value - this api always returns an error
+
+        CStringA userAgent =  Helpers::EscapeJsonString(CString(pszUserAgent));
 
         ss << "{" << endl;
         ss << "   \"Browser\" : \"" << browser << "\"" << endl;

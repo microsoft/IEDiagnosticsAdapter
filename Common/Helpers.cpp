@@ -271,7 +271,6 @@ namespace Helpers
             {
                 case '\\': escapedValue.Append("\\\\"); break;
                 case '\"': escapedValue.Append("\\\""); break;
-                case '/': escapedValue.Append("\\/"); break;
                 case '\b': escapedValue.Append("\\b"); break;
                 case '\f': escapedValue.Append("\\f"); break;
                 case '\n': escapedValue.Append("\\n"); break;
@@ -325,7 +324,6 @@ namespace Helpers
                             ss << ((verInfo->dwFileVersionLS >> 16) & 0xffff);
                             ss << ".";
                             ss << ((verInfo->dwFileVersionLS >> 0) & 0xffff);
-                            ss << ".";
                             versionString = ss.str().c_str();
                         }
                     }
