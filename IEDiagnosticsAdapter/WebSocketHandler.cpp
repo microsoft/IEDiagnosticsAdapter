@@ -420,6 +420,7 @@ HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
             ATLENSURE_RETURN_HR(succeeded, E_FAIL);
 
             // Inject script onto the browser thread
+            hr = this->InjectScript(L"assert", L"Assert.js", IDR_ASSERT_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"Common.js", IDR_COMMON_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"browserMain.js", IDR_BROWSER_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"DOM.js", IDR_DOM_SCRIPT, hwnd);
@@ -427,6 +428,7 @@ HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
             hr = this->InjectScript(L"browser", L"Page.js", IDR_PAGE_SCRIPT, hwnd);
 
             // Inject script  onto the debugger thread
+            hr = this->InjectScript(L"assert", L"Assert.js", IDR_ASSERT_SCRIPT, hwnd);
             hr = this->InjectScript(L"debugger", L"Common.js", IDR_COMMON_SCRIPT, hwnd);
             hr = this->InjectScript(L"debugger", L"debuggerMain.js", IDR_DEBUGGER_SCRIPT, hwnd);
 
