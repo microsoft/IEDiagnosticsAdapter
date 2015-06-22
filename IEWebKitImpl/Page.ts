@@ -191,10 +191,13 @@ module Proxy {
         private _screencastSession: ScreencastSession;
         private _frameRecorder: FrameRecorder;
         private _nextContextID: number;
+        private _firstValidContextID: number;
+        private _validContextIDs: Set<number>;
 
         constructor() {
             this._frameRecorder = new FrameRecorder();
             this._nextContextID = 1;
+            this._firstValidContextID = 1;
         }
 
         public processMessage(method: string, request: IWebKitRequest): void {
@@ -219,6 +222,10 @@ module Proxy {
 
                 case "getResourceTree":
                     processedResult = this.getResourceTree(request);
+                    break;
+
+                case "setOverlayMessage":
+                    processedResult = {};
                     break;
 
                 case "canScreencast":
@@ -265,12 +272,79 @@ module Proxy {
                     processedResult = this.reload();
                     break;
 
+                case "getNavigationHistory":
+                    // This looks like it is used for screen casting, but does not seem necessary to implement so leaving empty for now
+                    processedResult = {};
+                    break;
+
                 default:
                     processedResult = null;
                     break;
             }
 
             browserHandler.postResponse(request.id, processedResult);
+        }
+
+        public getAllDocs(doc: Document): Document[] {
+            var docs = [doc];
+
+            var tags = doc.querySelectorAll("iframe, frame");
+            for (var i = 0, n = tags.length; i < n; i++) {
+                var frame = <HTMLIFrameElement>tags[i];
+                var view = Common.getDefaultView(doc);
+                var result: IgetValidWindowResponse = Common.getValidWindow(view, frame.contentWindow);
+                if (result.isValid) {
+                    docs.concat(this.getAllDocs(result.window.document));
+                }
+            }
+
+            return docs;
+        }
+
+        public onNavigate(): void {
+            var docs = this.getAllDocs(browser.document);
+
+            docs.forEach(doc => {
+                browserHandler.postNotification("Page.frameStartedLoading", { FrameId: Common.getiframeId(doc) });
+            });
+
+            for (var i = this._firstValidContextID; i < this._nextContextID; i++) {
+                (<any>external).sendMessage("postMessage", JSON.stringify({
+                    method: "Runtime.executionContextDestroyed",
+                    params: {
+                        executionContextId: i
+                    }
+                }));
+            }
+
+            this._firstValidContextID = this._nextContextID + 1;
+
+            docs.forEach(doc => {
+                this.createExecutionContext(Common.getiframeId(doc));
+            });
+
+            docs.forEach(doc => {
+                var securityOrigin = (<any>doc.parentWindow.location).origin || "";
+                var frameId = Common.getiframeId(doc);
+                var frameNavigatedParams = {
+                    frame: {
+                        id: frameId,
+                        loaderId: this.getLoaderID(frameId),
+                        url: doc.parentWindow.location.href,
+                        mimeType: "text/html", // todo: doc.mimetype is "HTM File", if documents ever have a different mimeType figure out how to get it dynamically
+                        securityOrigin: securityOrigin
+                    }
+                };
+
+                browserHandler.postNotification("Page.frameNavigated", frameNavigatedParams);
+            });
+
+            browserHandler.postNotification("Page.domContentEventFired", { timestamp: 396680 }); // todo: use an accurate time stamp
+            browserHandler.postNotification("Page.loadEventFired", { timestamp: 396680 }); // todo: use an accurate time stamp
+            
+            docs.forEach(doc => {
+                browserHandler.postNotification("Page.frameStoppedLoading", { frameId: Common.getiframeId(doc) });
+            });
         }
 
         private reload(): IWebKitResult {
@@ -459,13 +533,30 @@ module Proxy {
             return processedResult;
         }
 
+        private createExecutionContext(frameId: string): void {
+            var executionContextCreatedParams = {
+                context: {
+                    id: this._nextContextID++,
+                    name: "", // I think that this field is only needed for Addons, which IE Does not support.
+                    origin: "",
+                    frameId: frameId
+                }
+            };
+
+            browserHandler.postNotification("Runtime.executionContextCreated", executionContextCreatedParams);
+        }
+
+        // frame id is xxxx.1, loader id is xxxx.2
+        private getLoaderID(frameId: string): string {
+            return frameId.substring(0, frameId.length - 1) + "2";
+        }
+
         private getResourceTreeRecursive(doc: Document, parentFrameId: string = ""): IWebKitResult {
             // Casting to any as the default lib.d.ts does not have it on the Location object    
             var securityOrigin = (<any>doc.parentWindow.location).origin || "";
             var frameId = Common.getiframeId(doc);
 
-            // frame id is xxxx.1, loader id is xxxx.2
-            var loaderId: string = frameId.substring(0, frameId.length - 1) + "2";
+            var loaderId: string = this.getLoaderID(frameId);
             var frameinfo: any = {
                 frame: {
                     id: frameId,
@@ -524,16 +615,7 @@ module Proxy {
             }
 
             // notify the Chrome dev tools that this frame is ready to receive console messages.
-            var executionContextCreatedParams = {
-                context: {
-                    id: this._nextContextID++,
-                    name: "", // I think that this field is only needed for Addons, which IE Does not support.
-                    origin: "",
-                    frameId: frameId
-                }
-            };
-
-            browserHandler.postNotification("Runtime.executionContextCreated", executionContextCreatedParams);
+            this.createExecutionContext(frameId);
             return frameinfo;
         }
 

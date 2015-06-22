@@ -14,10 +14,12 @@ module Proxy {
         private _mapUidToNode: Map<number, Node>;
         private _mapNodeToUid: WeakMap<Node, number>;
         private _nextAvailableUid: number;
+        private _firstValidStyleSheetUid: number;
         private _windowExternal: any; // todo: Make an appropriate TS interface for external
         private _elementHighlightColor: any;
         private _nextAvailableStyleSheetUid: number;
-        private _sentCSS: WeakMap<Document, boolean>; // using a WeakMap as a WeakSet because IE11 does not support WeakSet
+        private _sentCSS: Set<Document>; 
+        private _waitingOnGetDocumentRequestId: number; 
 
         // This keeps track of which nodes the Chrome Dev tools knows about. Any ID in _sentNodeIds the Chrome tools know about and know the parent chain up to the root document.
         // This is needed for the inspect element button so we can find the closet parent to the inspected element that the chrome tools know about.
@@ -30,13 +32,14 @@ module Proxy {
         constructor() {
             this._mapUidToNode = new Map<number, Node>(); // todo: This keeps nodes alive, which causes a memmory leak if the website is trying to remove nodes
             this._mapNodeToUid = new WeakMap<Node, number>();
-            this._sentCSS = new WeakMap<Document, boolean>();
+            this._sentCSS = new Set<Document>();
             this._sentNodeIds = new Set<number>();
-
+            this._waitingOnGetDocumentRequestId = 0;
             this._mapStyleSheetToStyleSheetID = new WeakMap<StyleSheet, number>();
 
             this._nextAvailableUid = 2; // 1 is reserved for the root
             this._nextAvailableStyleSheetUid = 1;
+            this._firstValidStyleSheetUid = 1;
             this._windowExternal = (<any>external);
             this._inspectModeEnabled = false;
             this._elementHighlightColor = {
@@ -56,15 +59,28 @@ module Proxy {
                 }
             };
 
-            // the root document always has nodeID 1
-            this._mapUidToNode.set(1, browser.document);
-            this._mapNodeToUid.set(browser.document, 1);
+            browser.addEventListener("documentComplete", (dispatchWindow: any) => {
+                // if _waitingOnGetDocumentRequestId is not zero, it means we got a getDocument request from  the chrome dev tools before the document was finished loading. 
+                // Now that we have the document we can fufill the request
+                if (this._waitingOnGetDocumentRequestId !== 0) {
+                    var processedResult: IWebKitResult = this.getDocument();
+                    browserHandler.postResponse(this._waitingOnGetDocumentRequestId, processedResult);
+                    this._waitingOnGetDocumentRequestId = 0;
+                }
+            });
         }
 
         public processMessage(method: string, request: IWebKitRequest): void {
             var processedResult: IWebKitResult;
             switch (method) {
-                case "getDocument":
+                case "getDocument":      
+                    if (!browser.document.body) {
+                        // when we navigate, we need to send the documentUpdated notification before we get any scriptParsed messages.
+                        // because of this, sometimes chrome requests the new document before it is finished loading, in this case set a flag and respond once we get a document complete message.
+                        this._waitingOnGetDocumentRequestId = request.id;
+                        return;
+                    }
+
                     processedResult = this.getDocument();
                     break;
 
@@ -85,19 +101,47 @@ module Proxy {
                     break;
 
                 case "getInlineStylesForNode":
+                    if (!this._mapUidToNode.has(request.params.nodeId)) {
+                        // when we refresh the page, sometimes the chrome dev tools ask for css on a nodeID that was invalidated. 
+                        // They also do this when the normal chrome Dev Tools are attached, so detect the problem and send back the same error chrome does.
+                        // The three separate error messages for the three different CSS requests are copy-pasted from chrome
+                        processedResult = { error: { code: -32000, message: "No node with given id found" } };
+                        break;
+                    }
+
                     // todo: Implement this function
                     break;
 
                 case "getMatchedStylesForNode":
+                    if (!this._mapUidToNode.has(request.params.nodeId)) {
+                        processedResult = { error: { code: -32000, message: "Node not found" } }; 
+                        break;
+                    }
+
                     processedResult = this.getMatchedStylesForNode(request);
                     break;
 
                 case "getComputedStyleForNode":
+                    if (!this._mapUidToNode.has(request.params.nodeId)) {
+                        processedResult = processedResult = { error: { code: -32000, message: "No node with given id found" } }; 
+                        break;
+                    }
+
                     processedResult = this.getComputedStyleForNode(request);
                     break;
 
                 case "pushNodesByBackendIdsToFrontend":
                     processedResult = this.pushNodesByBackendIdsToFrontend(request);
+                    break;
+
+                case "pushNodeByPathToFrontend":
+                    // for now this seems to only be called when you navigate, and it only requests document.body.
+                    // if we see this being used in other situations we will need an actual implimentaiton
+                    processedResult = {
+                        result: {
+                            nodeId: this.getNodeUid(browser.document.body)
+                        }
+                    };
                     break;
 
                 default:
@@ -107,6 +151,27 @@ module Proxy {
             }
 
             browserHandler.postResponse(request.id, processedResult);
+        }
+
+        public onNavigate(): void {
+            for (var i = this._firstValidStyleSheetUid; i < this._nextAvailableStyleSheetUid; i++) {
+                browserHandler.postNotification("CSS.styleSheetRemoved", { styleSheetId: "" + i });
+            }
+
+            this._firstValidStyleSheetUid = this._nextAvailableStyleSheetUid + 1;
+
+            browserHandler.postNotification("Console.messagesCleared", null);
+            browserHandler.postNotification("Debugger.globalObjectCleared", null);
+
+            // Since we have navigated, all of the stored information about nodes and CSS is no longer valid, so clear our state.
+            this._mapUidToNode = new Map<number, Node>();
+            this._mapNodeToUid = new WeakMap<Node, number>();
+            this._sentCSS = new Set<Document>();
+            this._sentNodeIds = new Set<number>();
+            this._mapStyleSheetToStyleSheetID = new WeakMap<StyleSheet, number>();
+
+            this.styleSheetAdded(browser.document); // send cssAdded notificaitons
+            browserHandler.postNotification("DOM.documentUpdated", null);
         }
 
         private getNodeUid(node: Node): number {
@@ -201,7 +266,7 @@ module Proxy {
         }
 
         private styleSheetAdded(doc: Document): void {
-            this._sentCSS.set(doc, true);
+            this._sentCSS.add(doc);
             for (var i = 0; i < doc.styleSheets.length; i++) {
                 var styleSheet: StyleSheet = doc.styleSheets[i];
                 var styleSheetID = this._nextAvailableStyleSheetUid++;
@@ -492,8 +557,9 @@ module Proxy {
 
         private getDocument(): IWebKitResult {
             this.styleSheetAdded(browser.document);
+            var nodeID = this.getNodeUid(browser.document);
             var document: INode = {
-                nodeId: 1,
+                nodeId: nodeID,
                 nodeType: browser.document.nodeType,
                 nodeName: browser.document.nodeName,
                 localName: browser.document.localName || "",
@@ -503,13 +569,7 @@ module Proxy {
                 xmlVersion: browser.document.xmlVersion,
             };
 
-            this._sentNodeIds.add(1);
-
-            if (!this._mapUidToNode.has(1)) {
-                this._mapUidToNode.set(1, browser.document);
-                this._mapNodeToUid.set(browser.document, 1);
-            }
-
+            this._sentNodeIds.add(nodeID);
             var validChildren: number = this.numberOfNonWhitespaceChildNodes(browser.document);
 
             if (validChildren > 0) {

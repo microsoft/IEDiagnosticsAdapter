@@ -59,7 +59,7 @@ declare module Proxy {
 
     interface IWebKitNotification {
         method: string;
-        params: any;
+        params?: any;
     }
 
     interface IWebKitResult {

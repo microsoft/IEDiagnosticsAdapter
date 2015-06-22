@@ -18,6 +18,12 @@ module Proxy {
         constructor() {
             this._windowExternal = (<any>external);
             this._windowExternal.addEventListener("message", (e: any) => this.messageHandler(e));
+            this.addNavigateListener();
+
+            browser.addEventListener("documentComplete", (dispatchWindow: any) => {
+                // Whenever we navigate, we need to add the unload listener to the new document
+                this.addNavigateListener();
+            });
         }
 
         public postResponse(id: number, value: IWebKitResult): void {
@@ -27,12 +33,26 @@ module Proxy {
         }
 
         public postNotification(method: string, params: any): void {
-            var notification = {
-                method: method,
-                params: params
-            };
+            var notification: IWebKitNotification;
+            if (params) {
+                notification = {
+                    method: method,
+                    params: params
+                };
+            } else {
+                notification = {
+                    method: method
+                };
+            }
 
             this._windowExternal.sendMessage("postMessage", JSON.stringify(notification)); // todo: should this be postMessage?
+        }
+
+        private addNavigateListener(): void {
+            browser.document.parentWindow.addEventListener("unload", (e: any) => {
+                pageHandler.onNavigate();
+                domHandler.onNavigate();
+            });
         }
 
         private alert(message: string): void {
