@@ -304,7 +304,7 @@ namespace Helpers
         DWORD  verSize = GetFileVersionInfoSizeA(filePath, &verHandle);
 
 
-        LPSTR verData;
+        LPSTR verData = NULL;
 
         if (verSize != NULL)
         {
