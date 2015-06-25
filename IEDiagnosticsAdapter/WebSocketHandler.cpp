@@ -13,7 +13,6 @@
 #include <Psapi.h>
 #include <Wininet.h>
 
-
 WebSocketHandler::WebSocketHandler(_In_ LPCWSTR rootPath, _In_ HWND hWnd) :
 m_rootPath(rootPath),
 m_hWnd(hWnd),
@@ -27,7 +26,7 @@ m_port(9222)
     m_server.set_message_handler(std::bind(&WebSocketHandler::OnMessage, this, std::placeholders::_1, std::placeholders::_2));
     m_server.set_close_handler(std::bind(&WebSocketHandler::OnClose, this, std::placeholders::_1));
 
-    stringstream port;
+    std::stringstream port;
     port << m_port;
 
     m_server.init_asio();
@@ -42,7 +41,7 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
 {
     server::connection_ptr con = m_server.get_con_from_hdl(hdl);
 
-    stringstream ss;
+    std::stringstream ss;
 
     std::string requestedResource = con->get_resource();
 
@@ -139,7 +138,6 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
         ss << "   \"User-Agent\" : \"" << userAgent << "\"" << endl;
         ss << "   \"WebKit-Version\" : \"" << "0" << "\"" << endl;
         ss << "}";
-
     }
 
     con->set_body(ss.str());
@@ -420,7 +418,7 @@ HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
             ATLENSURE_RETURN_HR(succeeded, E_FAIL);
 
             // Inject script onto the browser thread
-            hr = this->InjectScript(L"assert", L"Assert.js", IDR_ASSERT_SCRIPT, hwnd);
+            hr = this->InjectScript(L"browser", L"Assert.js", IDR_ASSERT_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"Common.js", IDR_COMMON_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"browserMain.js", IDR_BROWSER_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"DOM.js", IDR_DOM_SCRIPT, hwnd);
@@ -428,7 +426,7 @@ HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
             hr = this->InjectScript(L"browser", L"Page.js", IDR_PAGE_SCRIPT, hwnd);
 
             // Inject script  onto the debugger thread
-            hr = this->InjectScript(L"assert", L"Assert.js", IDR_ASSERT_SCRIPT, hwnd);
+            hr = this->InjectScript(L"debugger", L"Assert.js", IDR_ASSERT_SCRIPT, hwnd);
             hr = this->InjectScript(L"debugger", L"Common.js", IDR_COMMON_SCRIPT, hwnd);
             hr = this->InjectScript(L"debugger", L"debuggerMain.js", IDR_DEBUGGER_SCRIPT, hwnd);
 

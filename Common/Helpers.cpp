@@ -13,6 +13,7 @@
 
 #define IDM_STARTDIAGNOSTICSMODE 3802 
 #define CP_AUTO 50001 
+#define VERSION_SIGNATURE 0xFEEF04BD
 
 namespace Helpers
 {
@@ -302,35 +303,55 @@ namespace Helpers
         LPBYTE lpBuffer = NULL;
         DWORD  verSize = GetFileVersionInfoSizeA(filePath, &verHandle);
 
+
+        LPSTR verData;
+
         if (verSize != NULL)
         {
             LPSTR verData = new char[verSize];
-
-            if (GetFileVersionInfoA(filePath, verHandle, verSize, verData))
-            {
-                if (VerQueryValueA(verData, "\\", (VOID FAR* FAR*)&lpBuffer, &size))
-                {
-                    if (size)
-                    {
-                        VS_FIXEDFILEINFO *verInfo = (VS_FIXEDFILEINFO *)lpBuffer;
-                        if (verInfo->dwSignature == 0xfeef04bd)
-                        {
-                            
-                            stringstream  ss;
-                            ss << ((verInfo->dwFileVersionMS >> 16) & 0xffff);
-                            ss << ".";
-                            ss << ((verInfo->dwFileVersionMS >> 0) & 0xffff);
-                            ss << ".";
-                            ss << ((verInfo->dwFileVersionLS >> 16) & 0xffff);
-                            ss << ".";
-                            ss << ((verInfo->dwFileVersionLS >> 0) & 0xffff);
-                            versionString = ss.str().c_str();
-                        }
-                    }
-                }
-            }
-            delete[] verData;
         }
+        else
+        {
+            return NULL;
+        }
+        
+        if (!GetFileVersionInfoA(filePath, verHandle, verSize, verData))
+        {
+            return NULL;
+        }
+
+        if (!VerQueryValueA(verData, "\\", (VOID FAR* FAR*)&lpBuffer, &size))
+        {
+            return NULL;
+        }
+
+        if (size <= 0)
+        {
+            return NULL;
+        }
+
+        VS_FIXEDFILEINFO *verInfo = (VS_FIXEDFILEINFO *)lpBuffer;
+
+        // The signature value should always be 0xFEEF04BD according to MSDN
+        // https://msdn.microsoft.com/en-us/library/windows/desktop/ms646997(v=vs.85).aspx
+        // Though checking in case it's not as the bitwise operators below won't work if not
+        if (verInfo->dwSignature != VERSION_SIGNATURE)
+        {
+            return NULL;
+        }
+
+        std::stringstream  ss;
+        ss << ((verInfo->dwFileVersionMS >> 16) & 0xffff);
+        ss << ".";
+        ss << ((verInfo->dwFileVersionMS >> 0) & 0xffff);
+        ss << ".";
+        ss << ((verInfo->dwFileVersionLS >> 16) & 0xffff);
+        ss << ".";
+        ss << ((verInfo->dwFileVersionLS >> 0) & 0xffff);
+        versionString = ss.str().c_str();        
+
+        delete[] verData;
+        
         return versionString;
     }
 }
