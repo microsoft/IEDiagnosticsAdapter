@@ -9,9 +9,11 @@
 #include <Mshtmhst.h>
 #include <ExDisp.h>
 #include <webapplication.h>
+#include <sstream>
 
 #define IDM_STARTDIAGNOSTICSMODE 3802 
 #define CP_AUTO 50001 
+#define VERSION_SIGNATURE 0xFEEF04BD
 
 namespace Helpers
 {
@@ -270,7 +272,6 @@ namespace Helpers
             {
                 case '\\': escapedValue.Append("\\\\"); break;
                 case '\"': escapedValue.Append("\\\""); break;
-                case '/': escapedValue.Append("\\/"); break;
                 case '\b': escapedValue.Append("\\b"); break;
                 case '\f': escapedValue.Append("\\f"); break;
                 case '\n': escapedValue.Append("\\n"); break;
@@ -292,5 +293,65 @@ namespace Helpers
         }
 
         return escapedValue;
+    }
+
+    CStringA GetFileVersion(_In_ LPCSTR filePath)
+    {
+        CStringA versionString;
+        DWORD  verHandle = NULL;
+        UINT   size = 0;
+        LPBYTE lpBuffer = NULL;
+        DWORD  verSize = GetFileVersionInfoSizeA(filePath, &verHandle);
+
+
+        LPSTR verData = NULL;
+
+        if (verSize != NULL)
+        {
+            LPSTR verData = new char[verSize];
+        }
+        else
+        {
+            return NULL;
+        }
+        
+        if (!GetFileVersionInfoA(filePath, verHandle, verSize, verData))
+        {
+            return NULL;
+        }
+
+        if (!VerQueryValueA(verData, "\\", (VOID FAR* FAR*)&lpBuffer, &size))
+        {
+            return NULL;
+        }
+
+        if (size <= 0)
+        {
+            return NULL;
+        }
+
+        VS_FIXEDFILEINFO *verInfo = (VS_FIXEDFILEINFO *)lpBuffer;
+
+        // The signature value should always be 0xFEEF04BD according to MSDN
+        // https://msdn.microsoft.com/en-us/library/windows/desktop/ms646997(v=vs.85).aspx
+        // Though checking in case it's not as the bitwise operators below won't work if not
+        if (verInfo->dwSignature != VERSION_SIGNATURE)
+        {
+            return NULL;
+        }
+
+        std::stringstream  ss;
+        ss << ((verInfo->dwFileVersionMS >> 16) & 0xffff);
+        ss << ".";
+        ss << ((verInfo->dwFileVersionMS >> 0) & 0xffff);
+        ss << ".";
+        ss << ((verInfo->dwFileVersionLS >> 16) & 0xffff);
+        ss << ".";
+        ss << ((verInfo->dwFileVersionLS >> 0) & 0xffff);
+        versionString = ss.str().c_str();        
+
+        delete[] verData;
+        
+        return versionString;
     }
 }

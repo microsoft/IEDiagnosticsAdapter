@@ -11,6 +11,7 @@
 #include <VersionHelpers.h>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <Psapi.h>
+#include <Wininet.h>
 
 WebSocketHandler::WebSocketHandler(_In_ LPCWSTR rootPath, _In_ HWND hWnd) :
 m_rootPath(rootPath),
@@ -25,7 +26,7 @@ m_port(9222)
     m_server.set_message_handler(std::bind(&WebSocketHandler::OnMessage, this, std::placeholders::_1, std::placeholders::_2));
     m_server.set_close_handler(std::bind(&WebSocketHandler::OnClose, this, std::placeholders::_1));
 
-    stringstream port;
+    std::stringstream port;
     port << m_port;
 
     m_server.init_asio();
@@ -41,7 +42,10 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
     server::connection_ptr con = m_server.get_con_from_hdl(hdl);
 
     std::stringstream ss;
-    if (con->get_resource() == "/")
+
+    std::string requestedResource = con->get_resource();
+
+    if (requestedResource == "/")
     {
         // Load and return the html selection page
         CString inspect;
@@ -52,11 +56,11 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
             ss << page;
         }
     }
-    else if (con->get_resource() == "/json" || con->get_resource() == "/json/list")
+    else if (requestedResource == "/json" || requestedResource == "/json/list")
     {
         // Enumerate the running IE instances
         this->PopulateIEInstances();
-
+        
         // Return a json array describing the instances
         size_t index = 0;
         ss << "[";
@@ -68,22 +72,35 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
             url.Replace("file://", "file:///");
             CStringA title = Helpers::EscapeJsonString(it.second.title);
             CStringA fileName = Helpers::EscapeJsonString(::PathFindFileNameW(it.second.filePath));
+
             CComBSTR guidBSTR(it.second.guid);
             CStringA guid(guidBSTR);
             guid = guid.Mid(1, guid.GetLength() - 2);
 
-			std::stringstream wsUrlSS;
-			wsUrlSS << "ws://" << con->get_host() << ":" << con->get_port() << "/devtools/page/" << guid;
-			std::string wsUrl = wsUrlSS.str();
+            std::string strWebSocketDebuggerUrl("ws://");
+            strWebSocketDebuggerUrl += con->get_host();
+            strWebSocketDebuggerUrl += ":";
+            strWebSocketDebuggerUrl += std::to_string(con->get_port());
+            strWebSocketDebuggerUrl += "/devtools/page/";
+            strWebSocketDebuggerUrl += guid;
+            CStringA webSocketDebuggerUrl = Helpers::EscapeJsonString(CString(strWebSocketDebuggerUrl.c_str()));
+
+            std::string strDevtoolsFrontendUrl("http://");
+            strDevtoolsFrontendUrl += con->get_host();
+            strDevtoolsFrontendUrl += ":";
+            strDevtoolsFrontendUrl += "9223"; // The remote port for the hidden Chrome instance that serves the tools
+            strDevtoolsFrontendUrl += "/devtools/inspector.html?";
+            strDevtoolsFrontendUrl += strWebSocketDebuggerUrl.substr(5);
+            CStringA devtoolsFrontendUrl = Helpers::EscapeJsonString(CString(strDevtoolsFrontendUrl.c_str()));
 
             ss << "{" << endl;
             ss << "   \"description\" : \"" << fileName.MakeLower() << "\"," << endl;
-            ss << "   \"devtoolsFrontendUrl\" : \"http://localhost:9223/devtools/inspector.html?ws=" << wsUrl << "\"," << endl;
+            ss << "   \"devtoolsFrontendUrl\" : \"" << devtoolsFrontendUrl << "\"," << endl;
             ss << "   \"id\" : \"" << guid << "\"," << endl;
             ss << "   \"title\" : \"" << title << "\"," << endl;
             ss << "   \"type\" : \"page\"," << endl;
             ss << "   \"url\" : \"" << url << "\"," << endl;
-            ss << "   \"webSocketDebuggerUrl\" : \"" << wsUrl << "\"" << endl;
+            ss << "   \"webSocketDebuggerUrl\" : \"" << webSocketDebuggerUrl << "\"" << endl;
             ss << "}";
 
             if (index < m_instances.size() - 1)
@@ -93,6 +110,34 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
             index++;
         }
         ss << "]";
+    }
+    else if (requestedResource == "/json/version")
+    {
+        // To do: This will need to change to support Edge 
+        CStringA ieVersion = Helpers::GetFileVersion("C:\\Windows\\System32\\mshtml.dll");
+        CStringA browser = "Internet Explorer " + ieVersion;
+        browser = Helpers::EscapeJsonString(CString(browser));
+
+
+        DWORD dwUASize = 0;
+        UrlMkGetSessionOption(URLMON_OPTION_USERAGENT, nullptr, 0, &dwUASize, 0);
+
+        // Allocate string for current user agent:
+        string strUserAgent(dwUASize, '\0');
+
+        // Get current user agent:
+        PSTR pszUserAgent = const_cast<PSTR>(strUserAgent.c_str()); 
+        DWORD dwUASizeOut = 0;
+        UrlMkGetSessionOption(URLMON_OPTION_USERAGENT, pszUserAgent, dwUASize, &dwUASizeOut, 0); // Don't check return value - this api always returns an error
+
+        CStringA userAgent =  Helpers::EscapeJsonString(CString(pszUserAgent));
+
+        ss << "{" << endl;
+        ss << "   \"Browser\" : \"" << browser << "\"" << endl;
+        ss << "   \"Protocol-Version\" : \"" << IEDiagnosticsAdapter::s_Protocol_Version << "\"" << endl;
+        ss << "   \"User-Agent\" : \"" << userAgent << "\"" << endl;
+        ss << "   \"WebKit-Version\" : \"" << "0" << "\"" << endl;
+        ss << "}";
     }
 
     con->set_body(ss.str());

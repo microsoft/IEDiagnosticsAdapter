@@ -10,6 +10,8 @@
 #include "Strsafe.h"
 #include <Psapi.h>
 
+const CStringA IEDiagnosticsAdapter::s_Protocol_Version = CStringA("1.1");
+
 IEDiagnosticsAdapter::IEDiagnosticsAdapter(_In_ LPCWSTR rootPath)
 {
     // Create our message window used to handle window messages
