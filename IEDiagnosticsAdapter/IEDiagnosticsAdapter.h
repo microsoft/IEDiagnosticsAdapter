@@ -18,6 +18,8 @@ public:
     IEDiagnosticsAdapter(_In_ LPCWSTR rootPath);
     ~IEDiagnosticsAdapter();
 
+    static const CStringA s_Protocol_Version;
+
     BEGIN_MSG_MAP(WebSocketClient)
         MESSAGE_HANDLER(WM_COPYDATA, OnCopyData);
         MESSAGE_HANDLER(WM_PROCESSCOPYDATA, OnMessageFromIE)

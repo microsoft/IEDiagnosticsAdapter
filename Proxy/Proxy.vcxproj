@@ -104,7 +104,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ModuleDefinitionFile>Proxy.def</ModuleDefinitionFile>
       <AdditionalLibraryDirectories>..\Output\Published\$(Configuration)\;</AdditionalLibraryDirectories>
-      <AdditionalDependencies>jsrt.lib;Common.lib;DebuggerCore.lib</AdditionalDependencies>
+      <AdditionalDependencies>jsrt.lib;version.lib;Common.lib;DebuggerCore.lib</AdditionalDependencies>
     </Link>
     <Midl>
       <OutputDirectory>..\Output\Published\$(Configuration)\$(Platform)\</OutputDirectory>
