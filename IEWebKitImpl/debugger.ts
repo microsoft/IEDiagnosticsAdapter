@@ -206,21 +206,25 @@ module Proxy {
         private _isEnabled: boolean;
         private _documentMap: Map<string, number>;
         private _lineEndingsMap: Map<number, number[]>;
+        private _intellisenseExpression: string;
+        private _intellisenseFrame: any;
 
         constructor() {
             this._debugger = debug;
             this._isAtBreakpoint = false;
             this._documentMap = new Map<string, number>();
             this._lineEndingsMap = new Map<number, number[]>();
+            this._intellisenseFrame = null;
+            this._intellisenseExpression = "";
 
             // Hook up notifications
-            this._debugger.addEventListener("onAddDocuments", (documents: IDocument[]) => this.onAddDocuments(documents));
-            this._debugger.addEventListener("onRemoveDocuments", (docIds: number[]) => this.onRemoveDocuments(docIds));
-            this._debugger.addEventListener("onUpdateDocuments", (documents: IDocument[]) => this.onUpdateDocuments(documents));
-            this._debugger.addEventListener("onResolveBreakpoints", (breakpoints: IResolvedBreakpointInfo[]) => this.onResolveBreakpoints(breakpoints));
-            this._debugger.addEventListener("onBreak", (breakEventInfo: IBreakEventInfo) => this.onBreak(breakEventInfo));
+            this._debugger.addEventListener("onAddDocuments",(documents: IDocument[]) => this.onAddDocuments(documents));
+            this._debugger.addEventListener("onRemoveDocuments",(docIds: number[]) => this.onRemoveDocuments(docIds));
+            this._debugger.addEventListener("onUpdateDocuments",(documents: IDocument[]) => this.onUpdateDocuments(documents));
+            this._debugger.addEventListener("onResolveBreakpoints",(breakpoints: IResolvedBreakpointInfo[]) => this.onResolveBreakpoints(breakpoints));
+            this._debugger.addEventListener("onBreak",(breakEventInfo: IBreakEventInfo) => this.onBreak(breakEventInfo));
 
-            host.addEventListener("onmessage", (data: string) => this.onMessage(data));
+            host.addEventListener("onmessage",(data: string) => this.onMessage(data));
         }
 
         private onMessage(data: string): void {
@@ -348,6 +352,69 @@ module Proxy {
                 wasThrown: wasThrown,
                 result: resultDesc
             };
+
+
+
+
+
+            //var type = prop.type.toLowerCase();
+            //var subType = null;
+            //var value: any;
+            //var index = type.indexOf(",");
+            //if (index !== -1) {
+            //    subType = type.substring(index + 3, type.length - 1) // omit trailing )
+            //    type = "object";
+            //}
+
+            //if (subType === "function") {
+            //    type = "function";
+            //    subType = null;
+            //}
+
+            //if (type === "null") {
+            //    type = "object";
+            //    subType = "null";
+            //}
+
+            //if (type === "object" && prop.value === "undefined") {
+            //    type = "undefined";
+            //    subType = null;
+            //}
+
+            //var wasThrown = false;
+            //if (type === "error") {
+            //    type = "object";
+            //    wasThrown = true;
+            //}
+
+            //if (type === "number") {
+            //    value = parseFloat(prop.value);
+            //}
+
+            //if (typeof prop.value === "string" && prop.value.length > 2 && prop.value.indexOf("\"") === 0 && prop.value.lastIndexOf("\"") === prop.value.length - 1) {
+            //    prop.value = prop.value.substring(1, prop.value.length - 1);
+            //}
+            //// maybe do different things if we are getting if request.params."objectGroup" = "completion" or sumthin else
+            //var resultDesc = {
+            //    type: type,
+            //    objectId: (prop.expandable ? "" + prop.propertyId : null),
+                
+            //    //objectId: "{\"injectedScriptId\":1,\"id\":2413}",
+            //    //  value: (typeof value !== "undefined" ? value : prop.value),
+            //    //  description: prop.value.toString(),
+            //    description: subType,
+            //    className: subType
+            //};
+           
+            ///*   if (type === "object") {
+            //       (<any>resultDesc).className = "Object";
+            //       (<any>resultDesc).subType = subType;
+            //   } */
+
+            //return {
+            //    wasThrown: wasThrown,
+            //    result: resultDesc
+            //};
         }
 
         private postResponse(id: number, value: IWebKitResult): void {
@@ -365,10 +432,53 @@ module Proxy {
             host.postMessage(JSON.stringify(notification));
         }
 
+        private callFunctionOn(request: IWebKitRequest): IWebKitResult {
+            if (this._intellisenseFrame && this._intellisenseExpression) {
+                var prop = this._debugger.eval(this._intellisenseFrame, this._intellisenseExpression);
+                this._intellisenseExpression = "";
+                this._intellisenseFrame = null;
+
+                if (!prop) {
+                    return {
+                        error: "Could not find object"
+                    };
+                }
+
+                var childProps = this._debugger.getChildProperties(<any>prop.propertyId, 0, 0);
+                var value = {};
+                for (var i = 0; i < childProps.propInfos.length; i++) {
+                    var childProp: IPropertyInfo = childProps.propInfos[i];
+                    if (!childProp.fake) {
+                        value[childProp.name] = true;
+                    }
+                }
+
+                return {
+                    result: {
+                        result: {
+                            type: "object",
+                            value: value
+                        },
+                        wasThrown: false
+                    }
+                };
+            }
+        }
+
         private processRuntime(method: string, request: IWebKitRequest): void {
             var processedResult: IWebKitResult;
 
             switch (method) {
+                // copy-pasta from runtime.ts, why is this is two places???
+                case "enable":
+                    processedResult = { result: {} };
+                    break;
+
+               
+                case "callFunctionOn":
+                    processedResult = this.callfunctionon(request);
+                    break;
+
                 case "evaluate":
                     var prop = debug.eval(request.params.contextId, request.params.expression);
                     if (prop) {
@@ -441,6 +551,12 @@ module Proxy {
                     return;
 
                 case "evaluateOnCallFrame":
+                    // Intelisense from the chrome dev tools calls this than runtime.callFunctionOn. 
+                    // We need to return information on the object when runtime.callFunctionOn is called, so save state we will need now
+                    if (request.params.objectGroup === "completion") {
+                        this._intellisenseExpression = request.params.expression;
+                        this._intellisenseFrame = request.params.callFrameId;
+                    }
                     var frameId = parseInt(request.params.callFrameId);
                     var prop = this._debugger.eval(frameId, request.params.expression);
                     if (prop) {
@@ -678,4 +794,8 @@ module Proxy {
 
     var app = new App();
     app.main();
+
+
+    ////////inteli remote helpers
+
 }

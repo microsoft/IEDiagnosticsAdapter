@@ -73,7 +73,7 @@ declare module Proxy {
         objectId: string;
         subType?: string;
         type: string;
-        value: any;
+        value?: any;
     }
 
     interface IWebKitCookie {
