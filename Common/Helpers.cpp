@@ -112,7 +112,7 @@ namespace Helpers
             charsNeeded = ::ExpandEnvironmentStrings(path, expandedString.GetBuffer(charsNeeded), charsNeeded);
             ATLENSURE_RETURN_HR(charsNeeded > 0, AtlHresultFromLastError());
         }
-        expandedString.ReleaseBufferSetLength(charsNeeded - 1); 
+        expandedString.ReleaseBufferSetLength(charsNeeded - 1);
 
         return S_OK;
     }
@@ -241,7 +241,7 @@ namespace Helpers
         FAIL_IF_NOT_S_OK(hr);
         hr = spSafeArray.SetAt(2, ::SysAllocString(L""), FALSE);
         FAIL_IF_NOT_S_OK(hr);
-        hr = spSafeArray.SetAt(3, ::SysAllocString(L""), FALSE); 
+        hr = spSafeArray.SetAt(3, ::SysAllocString(L""), FALSE);
         FAIL_IF_NOT_S_OK(hr);
 
         // Start diagnostics mode
@@ -270,45 +270,54 @@ namespace Helpers
             auto c = value[i];
             switch (c)
             {
-                case '\\': escapedValue.Append("\\\\"); break;
-                case '\"': escapedValue.Append("\\\""); break;
-                case '\b': escapedValue.Append("\\b"); break;
-                case '\f': escapedValue.Append("\\f"); break;
-                case '\n': escapedValue.Append("\\n"); break;
-                case '\r': escapedValue.Append("\\r"); break;
-                case '\t': escapedValue.Append("\\t"); break;
-                default:
-                    if (c < 0x20 || c > 0x7e)
-                    {
-                        CStringA charLiteral;
-                        charLiteral.Format("\\u%04x", c);
-                        escapedValue.Append(charLiteral);
-                    }
-                    else
-                    {
-                        escapedValue.AppendChar((char)c);
-                    }
-                    break;
+            case '\\': escapedValue.Append("\\\\"); break;
+            case '\"': escapedValue.Append("\\\""); break;
+            case '\b': escapedValue.Append("\\b"); break;
+            case '\f': escapedValue.Append("\\f"); break;
+            case '\n': escapedValue.Append("\\n"); break;
+            case '\r': escapedValue.Append("\\r"); break;
+            case '\t': escapedValue.Append("\\t"); break;
+            default:
+                if (c < 0x20 || c > 0x7e)
+                {
+                    CStringA charLiteral;
+                    charLiteral.Format("\\u%04x", c);
+                    escapedValue.Append(charLiteral);
+                }
+                else
+                {
+                    escapedValue.AppendChar((char)c);
+                }
+                break;
             }
         }
 
         return escapedValue;
     }
 
-    CStringA GetFileVersion(_In_ LPCSTR filePath)
+    CStringA GetFileVersion(_In_ CStringA filePath)
     {
         CStringA versionString;
         DWORD  verHandle = NULL;
         UINT   size = 0;
-        LPBYTE lpBuffer = NULL;
-        DWORD  verSize = GetFileVersionInfoSizeA(filePath, &verHandle);
-
-
         LPSTR verData = NULL;
+        DWORD  verSize = GetFileVersionInfoSizeA(filePath, NULL);
+                
+        if (verSize == 0)
+        {
+            return NULL;
+        }
+
+        DWORD error = GetLastError();
+        if (error != 0)
+        {
+            return NULL;
+        }
+
 
         if (verSize != NULL)
         {
-            LPSTR verData = new char[verSize];
+            verData = new char[verSize];
         }
         else
         {
@@ -320,7 +329,7 @@ namespace Helpers
             return NULL;
         }
 
-        if (!VerQueryValueA(verData, "\\", (VOID FAR* FAR*)&lpBuffer, &size))
+        if (!VerQueryValueA(verData, "\\", (VOID **)&verData, &size))
         {
             return NULL;
         }
@@ -330,7 +339,7 @@ namespace Helpers
             return NULL;
         }
 
-        VS_FIXEDFILEINFO *verInfo = (VS_FIXEDFILEINFO *)lpBuffer;
+        VS_FIXEDFILEINFO *verInfo = (VS_FIXEDFILEINFO *)verData;
 
         // The signature value should always be 0xFEEF04BD according to MSDN
         // https://msdn.microsoft.com/en-us/library/windows/desktop/ms646997(v=vs.85).aspx
@@ -350,8 +359,7 @@ namespace Helpers
         ss << ((verInfo->dwFileVersionLS >> 0) & 0xffff);
         versionString = ss.str().c_str();        
 
-        delete[] verData;
-        
+                
         return versionString;
     }
 }
