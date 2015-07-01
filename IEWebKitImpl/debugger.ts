@@ -476,7 +476,7 @@ module Proxy {
 
                
                 case "callFunctionOn":
-                    processedResult = this.callfunctionon(request);
+                    processedResult = this.callFunctionOn(request);
                     break;
 
                 case "evaluate":
