@@ -295,52 +295,33 @@ namespace Helpers
         return escapedValue;
     }
 
-    CStringA GetFileVersion(_In_ CStringA filePath)
+    CStringA GetFileVersion(_In_ LPCSTR filePath)
     {
-        CStringA versionString;
-        DWORD  verHandle = NULL;
-        UINT   size = 0;
-        LPSTR verData = NULL;
-        DWORD  verSize = GetFileVersionInfoSizeA(filePath, NULL);
-                
-        if (verSize == 0)
+        ::SetLastError(0);
+        DWORD  verSize = ::GetFileVersionInfoSizeA(filePath, NULL);   
+        if (::GetLastError() != 0 && verSize == NULL && verSize == 0)
+        {
+            return NULL;
+        }
+        std::vector<char> verData(verSize);
+
+        if (!::GetFileVersionInfoA(filePath, NULL, verSize, &verData[0]))
         {
             return NULL;
         }
 
-        DWORD error = GetLastError();
-        if (error != 0)
+        VS_FIXEDFILEINFO* verInfo = nullptr;
+        UINT sizeOfVersionNumber;
+        if (!::VerQueryValueA(&verData[0], "\\", (LPVOID*)&verInfo, &sizeOfVersionNumber))
         {
             return NULL;
         }
 
-
-        if (verSize != NULL)
-        {
-            verData = new char[verSize];
-        }
-        else
+        if (sizeOfVersionNumber <= 0)
         {
             return NULL;
         }
         
-        if (!GetFileVersionInfoA(filePath, verHandle, verSize, verData))
-        {
-            return NULL;
-        }
-
-        if (!VerQueryValueA(verData, "\\", (VOID **)&verData, &size))
-        {
-            return NULL;
-        }
-
-        if (size <= 0)
-        {
-            return NULL;
-        }
-
-        VS_FIXEDFILEINFO *verInfo = (VS_FIXEDFILEINFO *)verData;
-
         // The signature value should always be 0xFEEF04BD according to MSDN
         // https://msdn.microsoft.com/en-us/library/windows/desktop/ms646997(v=vs.85).aspx
         // Though checking in case it's not as the bitwise operators below won't work if not
@@ -357,9 +338,7 @@ namespace Helpers
         ss << ((verInfo->dwFileVersionLS >> 16) & 0xffff);
         ss << ".";
         ss << ((verInfo->dwFileVersionLS >> 0) & 0xffff);
-        versionString = ss.str().c_str();        
-
                 
-        return versionString;
+        return ss.str().c_str();
     }
 }
