@@ -218,13 +218,13 @@ module Proxy {
             this._intellisenseExpression = "";
 
             // Hook up notifications
-            this._debugger.addEventListener("onAddDocuments",(documents: IDocument[]) => this.onAddDocuments(documents));
-            this._debugger.addEventListener("onRemoveDocuments",(docIds: number[]) => this.onRemoveDocuments(docIds));
-            this._debugger.addEventListener("onUpdateDocuments",(documents: IDocument[]) => this.onUpdateDocuments(documents));
-            this._debugger.addEventListener("onResolveBreakpoints",(breakpoints: IResolvedBreakpointInfo[]) => this.onResolveBreakpoints(breakpoints));
-            this._debugger.addEventListener("onBreak",(breakEventInfo: IBreakEventInfo) => this.onBreak(breakEventInfo));
+            this._debugger.addEventListener("onAddDocuments", (documents: IDocument[]) => this.onAddDocuments(documents));
+            this._debugger.addEventListener("onRemoveDocuments", (docIds: number[]) => this.onRemoveDocuments(docIds));
+            this._debugger.addEventListener("onUpdateDocuments", (documents: IDocument[]) => this.onUpdateDocuments(documents));
+            this._debugger.addEventListener("onResolveBreakpoints", (breakpoints: IResolvedBreakpointInfo[]) => this.onResolveBreakpoints(breakpoints));
+            this._debugger.addEventListener("onBreak", (breakEventInfo: IBreakEventInfo) => this.onBreak(breakEventInfo));
 
-            host.addEventListener("onmessage",(data: string) => this.onMessage(data));
+            host.addEventListener("onmessage", (data: string) => this.onMessage(data));
         }
 
         private onMessage(data: string): void {
@@ -243,7 +243,7 @@ module Proxy {
             if (request) {
                 var methodParts = request.method.split(".");
 
-                if (!this._isAtBreakpoint && methodParts[0] !== "Debugger") {
+                if (!this._isAtBreakpoint && methodParts[0] !== "Debugger" && methodParts[0] !== "Custom") {
                     return host.postMessageToEngine("browser", this._isAtBreakpoint, JSON.stringify(request));
                 }
 
@@ -251,9 +251,28 @@ module Proxy {
                     case "Runtime":
                         this.processRuntime(methodParts[1], request);
                         break;
+
                     case "Debugger":
                         this.processDebugger(methodParts[1], request);
                         break;
+
+                    case "Custom":
+                        switch (methodParts[1]) {
+                            // message I made up for when the chrome tools close/refresh
+                            case "toolsDisconnected":
+                                this.debuggerResume(BreakResumeAction.Continue);
+                                host.postMessageToEngine("browser", this._isAtBreakpoint, "{\"method\":\"Custom.toolsDisconnected\"}");
+                                this._debugger.disconnect();
+                                this._isEnabled = false;
+                                break;
+
+                            default:
+                                Assert.fail("Unreconized custom message");
+                                break;
+                        }
+
+                        break;
+
                     default:
                         return host.postMessageToEngine("browser", this._isAtBreakpoint, JSON.stringify(request));
                 }
@@ -352,69 +371,6 @@ module Proxy {
                 wasThrown: wasThrown,
                 result: resultDesc
             };
-
-
-
-
-
-            //var type = prop.type.toLowerCase();
-            //var subType = null;
-            //var value: any;
-            //var index = type.indexOf(",");
-            //if (index !== -1) {
-            //    subType = type.substring(index + 3, type.length - 1) // omit trailing )
-            //    type = "object";
-            //}
-
-            //if (subType === "function") {
-            //    type = "function";
-            //    subType = null;
-            //}
-
-            //if (type === "null") {
-            //    type = "object";
-            //    subType = "null";
-            //}
-
-            //if (type === "object" && prop.value === "undefined") {
-            //    type = "undefined";
-            //    subType = null;
-            //}
-
-            //var wasThrown = false;
-            //if (type === "error") {
-            //    type = "object";
-            //    wasThrown = true;
-            //}
-
-            //if (type === "number") {
-            //    value = parseFloat(prop.value);
-            //}
-
-            //if (typeof prop.value === "string" && prop.value.length > 2 && prop.value.indexOf("\"") === 0 && prop.value.lastIndexOf("\"") === prop.value.length - 1) {
-            //    prop.value = prop.value.substring(1, prop.value.length - 1);
-            //}
-            //// maybe do different things if we are getting if request.params."objectGroup" = "completion" or sumthin else
-            //var resultDesc = {
-            //    type: type,
-            //    objectId: (prop.expandable ? "" + prop.propertyId : null),
-                
-            //    //objectId: "{\"injectedScriptId\":1,\"id\":2413}",
-            //    //  value: (typeof value !== "undefined" ? value : prop.value),
-            //    //  description: prop.value.toString(),
-            //    description: subType,
-            //    className: subType
-            //};
-           
-            ///*   if (type === "object") {
-            //       (<any>resultDesc).className = "Object";
-            //       (<any>resultDesc).subType = subType;
-            //   } */
-
-            //return {
-            //    wasThrown: wasThrown,
-            //    result: resultDesc
-            //};
         }
 
         private postResponse(id: number, value: IWebKitResult): void {
@@ -474,7 +430,6 @@ module Proxy {
                     processedResult = { result: {} };
                     break;
 
-               
                 case "callFunctionOn":
                     processedResult = this.callFunctionOn(request);
                     break;
@@ -532,6 +487,17 @@ module Proxy {
             this.postResponse(request.id, processedResult);
         }
 
+        private processCustom(method: string, request: IWebKitRequest): void {
+            switch (method) {
+                case "toolsDisconnected":
+                    this.debuggerResume(BreakResumeAction.Continue);
+                    return host.postMessageToEngine("browser", this._isAtBreakpoint, "{\"method\":\"Custom.toolsDisconnected\"}");
+                    this._debugger.disconnect();
+                    this._isEnabled = false;
+                    break;
+            }
+        }
+
         private processDebugger(method: string, request: IWebKitRequest): void {
             var processedResult: IWebKitResult;
 
@@ -557,6 +523,7 @@ module Proxy {
                         this._intellisenseExpression = request.params.expression;
                         this._intellisenseFrame = request.params.callFrameId;
                     }
+
                     var frameId = parseInt(request.params.callFrameId);
                     var prop = this._debugger.eval(frameId, request.params.expression);
                     if (prop) {
@@ -794,8 +761,4 @@ module Proxy {
 
     var app = new App();
     app.main();
-
-
-    ////////inteli remote helpers
-
 }

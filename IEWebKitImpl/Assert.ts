@@ -102,7 +102,7 @@ module Proxy {
             }
         }
 
-        private static fail(message: string): void {
+        public static fail(message: string): void {
             // Uncomment next line if you wish
             // debugger;
             var error = new Error((message || "Assert failed.") + "\n");

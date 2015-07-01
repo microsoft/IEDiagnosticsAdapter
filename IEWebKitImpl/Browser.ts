@@ -78,6 +78,16 @@ module Proxy {
 
                     // browser.document.parentWindow.alert(e.data);
                     switch (methodParts[0]) {
+                        case "Custom":
+                            switch (methodParts[1]) {
+                                case "toolsDisconnected":
+                                    Proxy.pageHandler.onNavigate();
+                                    Proxy.domHandler.onNavigate();
+                                    break;
+                            }
+
+                            break;
+
                         case "Runtime":
                             runtimeHandler.processMessage(methodParts[1], request);
                             break;

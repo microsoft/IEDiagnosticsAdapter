@@ -207,6 +207,9 @@ void WebSocketHandler::OnMessage(websocketpp::connection_hdl hdl, server::messag
 {
     if (m_clientConnections.find(hdl) != m_clientConnections.end())
     {
+		// uncomment this to dump logging info to the adaptor
+		//std::cout << msg->get_payload().c_str() << "\n";
+
         // Message from WebKit client to IE
         CString message(msg->get_payload().c_str());
         this->SendMessageToInstance(m_clientConnections[hdl], message);
@@ -221,18 +224,19 @@ void WebSocketHandler::OnClose(websocketpp::connection_hdl hdl)
     {
         for (auto& i : m_instances)
         {
-            if (i.second.connectionHwnd == m_clientConnections[hdl])
-            {
-                instanceHwnd = i.first;
-                break;
-            }
-        }
+			if (i.second.connectionHwnd == m_clientConnections[hdl])
+			{
+				instanceHwnd = i.first;
+				break;
+			}
+		}
 
-        m_proxyConnections.erase(m_clientConnections[hdl]);
-        m_clientConnections.erase(hdl);
-    }
+		CString msg(L"{\"method\":\"Custom.toolsDisconnected\"}");
+		this->SendMessageToInstance(m_clientConnections[hdl], msg);
 
-    m_instances.erase(instanceHwnd);
+		m_proxyConnections.erase(m_clientConnections[hdl]);
+		m_clientConnections.erase(hdl);
+	}
 }
 // Helper functions
 
@@ -343,6 +347,9 @@ void WebSocketHandler::RunServer() {
 
 void WebSocketHandler::OnMessageFromIE(string message, HWND proxyHwnd)
 {
+	// uncomment this to dump logging info to the adaptor
+	//std::cout << message << "\n";
+
     // post this message to our IO queue so the server thread will pick it up and handle it synchronously
     this->m_server.get_io_service().post(boost::bind(&WebSocketHandler::OnMessageFromIEHandler, this, message, proxyHwnd));
 }
@@ -374,7 +381,7 @@ HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
 {
     if (instance.isConnected)
     {
-        return E_NOT_VALID_STATE;
+		return S_OK;
     }
 
     CComPtr<IHTMLDocument2> spDocument;
