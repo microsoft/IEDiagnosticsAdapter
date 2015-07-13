@@ -26,6 +26,7 @@
     <TypeScriptCompile Include="Assert.ts" />
     <TypeScriptCompile Include="Browser.ts" />
     <TypeScriptCompile Include="Common.ts" />
+    <TypeScriptCompile Include="CSSParser.ts" />
     <TypeScriptCompile Include="Debugger.ts" />
     <TypeScriptCompile Include="DOM.ts" />
     <TypeScriptCompile Include="IE11.DiagnosticOM.d.ts" />

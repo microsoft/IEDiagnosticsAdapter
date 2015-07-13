@@ -431,6 +431,7 @@ HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
             hr = this->InjectScript(L"browser", L"DOM.js", IDR_DOM_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"Runtime.js", IDR_RUNTIME_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"Page.js", IDR_PAGE_SCRIPT, hwnd);
+            hr = this->InjectScript(L"browser", L"CSSParser.js", IDR_CSSPARSER_SCRIPT, hwnd);
 
             // Inject script  onto the debugger thread
             hr = this->InjectScript(L"debugger", L"Assert.js", IDR_ASSERT_SCRIPT, hwnd);

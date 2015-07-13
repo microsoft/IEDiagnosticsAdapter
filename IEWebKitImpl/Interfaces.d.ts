@@ -88,6 +88,42 @@ declare module Proxy {
         session: boolean;
     }
 
+    interface IRange {
+        endColumn: number;
+        endLine: number;
+        startColumn: number;
+        startLine: number;
+    }
+
+    interface ILineCol {
+        line: number;
+        column: number;
+    }
+
+    export interface ICssDeclaration {
+        originalOffset: number;
+        endOffset?: number; // todo: Ensure that everything has endOffset once parsing is finished
+        property: string;
+        value: string;
+        isMissingSemicolon?: boolean;
+        isDisabled?: boolean;
+        disabledFullText?: string;
+    }
+
+    export interface ICssRuleset {
+        originalOffset: number;
+        endOffset?: number; // todo: Ensure that everything has endOffset once parsing is finished
+        selector: string;
+        declarations: ICssDeclaration[];
+    }
+
+    export interface ICssMediaQuery {
+        originalOffset: number;
+        endOffset?: number; // todo: Ensure that everything has endOffset once parsing is finished
+        query: string;
+        rulesets: ICssRuleset[];
+    }
+
     interface IWebKitScreencastFrame {
         data: string;
         metadata: IWebKitScreencastFrameMetadata;

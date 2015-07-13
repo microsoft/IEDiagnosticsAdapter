@@ -5,6 +5,7 @@
 /// <reference path="Interfaces.d.ts"/>
 /// <reference path="IE11.DiagnosticOM.d.ts" />
 /// <reference path="Browser.ts"/>
+/// <reference path="CSSParser.ts"/>
 
 module Proxy {
     "use strict";
@@ -13,18 +14,25 @@ module Proxy {
     export class DOMHandler implements IDomainHandler {
         private _mapUidToNode: Map<number, Node>;
         private _mapNodeToUid: WeakMap<Node, number>;
+        private _mapNodeIdToInlineStyleSheetId: Map<number, string>;
+        private _mapInlineStyleSheetIdToNodeId: Map<string, number>;
         private _nextAvailableUid: number;
         private _firstValidStyleSheetUid: number;
         private _windowExternal: any; // todo: Make an appropriate TS interface for external
         private _elementHighlightColor: any;
         private _nextAvailableStyleSheetUid: number;
-        private _sentCSS: Set<Document>; 
+        private _sentCSS: Set<Document>;
         private _waitingOnGetDocumentRequestId: number; 
 
         // This keeps track of which nodes the Chrome Dev tools knows about. Any ID in _sentNodeIds the Chrome tools know about and know the parent chain up to the root document.
         // This is needed for the inspect element button so we can find the closet parent to the inspected element that the chrome tools know about.
         private _sentNodeIds: Set<number>;
-        private _mapStyleSheetToStyleSheetID: WeakMap<StyleSheet, number>;
+        private _mapStyleSheetToStyleSheetID: WeakMap<CSSStyleSheet, string>;
+        private _mapStyleSheetIDToStyleSheet: Map<string, CSSStyleSheet>;
+
+        // todo: Eventually we want to get rid of this and only use the actual stylesheet. However, that causes issues with disabled properties, 
+        // because there won't be any text in the style sheet and returning a property with lengh 0 is weird
+        private _mapStyleSheetIDToStyleSheetText: Map<string, string>; 
         private _inspectModeEnabled: boolean;
         private _selectElementHandler: (event: Event) => void;
         private _hoverElementHandler: (event: Event) => void;
@@ -32,12 +40,15 @@ module Proxy {
         constructor() {
             this._mapUidToNode = new Map<number, Node>(); // todo: This keeps nodes alive, which causes a memmory leak if the website is trying to remove nodes
             this._mapNodeToUid = new WeakMap<Node, number>();
+            this._mapNodeIdToInlineStyleSheetId = new Map<number, string>();
+            this._mapInlineStyleSheetIdToNodeId = new Map<string, number>();
             this._sentCSS = new Set<Document>();
             this._sentNodeIds = new Set<number>();
             this._waitingOnGetDocumentRequestId = 0;
-            this._mapStyleSheetToStyleSheetID = new WeakMap<StyleSheet, number>();
-
-            this._nextAvailableUid = 2; // 1 is reserved for the root
+            this._mapStyleSheetToStyleSheetID = new WeakMap<CSSStyleSheet, string>();
+            this._mapStyleSheetIDToStyleSheet = new Map<string, CSSStyleSheet>();
+            this._mapStyleSheetIDToStyleSheetText = new Map<string, string>();
+            this._nextAvailableUid = 1;
             this._nextAvailableStyleSheetUid = 1;
             this._firstValidStyleSheetUid = 1;
             this._windowExternal = (<any>external);
@@ -73,8 +84,8 @@ module Proxy {
         public processMessage(method: string, request: IWebKitRequest): void {
             var processedResult: IWebKitResult;
             switch (method) {
-                case "getDocument":      
-                    if (!browser.document.body) {
+                case "getDocument":
+                    if (!browser.document || !browser.document.body) { // when the page closes browser.document can be "unspecified error"
                         // when we navigate, we need to send the documentUpdated notification before we get any scriptParsed messages.
                         // because of this, sometimes chrome requests the new document before it is finished loading, in this case set a flag and respond once we get a document complete message.
                         this._waitingOnGetDocumentRequestId = request.id;
@@ -86,6 +97,18 @@ module Proxy {
 
                 case "hideHighlight":
                     processedResult = this.hideHighlight();
+                    break;
+
+                case "getAttributes":
+                    // todo: impliment this
+                    break;
+
+                case "setPropertyText":
+                    processedResult = this.setPropertyText(request);
+                    break;
+
+                case "getStyleSheetText":
+                    processedResult = this.getStyleSheetText(request);
                     break;
 
                 case "highlightNode":
@@ -109,12 +132,38 @@ module Proxy {
                         break;
                     }
 
-                    // todo: Implement this function
+                    // todo: Implement this function as more than a stub
+                    var nodeId = request.params.nodeId;
+                    var styleSheetID: string;
+                    if (!this._mapNodeIdToInlineStyleSheetId.has(nodeId)) {
+                        styleSheetID = "" + this._nextAvailableStyleSheetUid++;
+                        this._mapInlineStyleSheetIdToNodeId.set(styleSheetID, nodeId);
+                        this._mapNodeIdToInlineStyleSheetId.set(nodeId, styleSheetID);
+                    } else {
+                        styleSheetID = this._mapNodeIdToInlineStyleSheetId.get(request.params.nodeId);
+                    }
+
+                    processedResult = {
+                        result: {
+                            inlineStyle: {
+                                cssProperties: [],
+                                shorthandEntries: [],
+                                styleSheetId: styleSheetID,
+                                range: {
+                                    startLine: 0,
+                                    startColumn: 0,
+                                    endLine: 0,
+                                    endColumn: 0,
+                                },
+                                cssText: ""
+                            }
+                        }
+                    };
                     break;
 
                 case "getMatchedStylesForNode":
                     if (!this._mapUidToNode.has(request.params.nodeId)) {
-                        processedResult = { error: { code: -32000, message: "Node not found" } }; 
+                        processedResult = { error: { code: -32000, message: "Node not found" } };
                         break;
                     }
 
@@ -123,7 +172,7 @@ module Proxy {
 
                 case "getComputedStyleForNode":
                     if (!this._mapUidToNode.has(request.params.nodeId)) {
-                        processedResult = processedResult = { error: { code: -32000, message: "No node with given id found" } }; 
+                        processedResult = processedResult = { error: { code: -32000, message: "No node with given id found" } };
                         break;
                     }
 
@@ -166,9 +215,14 @@ module Proxy {
             // Since we have navigated, all of the stored information about nodes and CSS is no longer valid, so clear our state.
             this._mapUidToNode = new Map<number, Node>();
             this._mapNodeToUid = new WeakMap<Node, number>();
+            this._mapInlineStyleSheetIdToNodeId = new Map<string, number>();
+            this._mapNodeIdToInlineStyleSheetId = new Map<number, string>();
+
             this._sentCSS = new Set<Document>();
             this._sentNodeIds = new Set<number>();
-            this._mapStyleSheetToStyleSheetID = new WeakMap<StyleSheet, number>();
+            this._mapStyleSheetToStyleSheetID = new WeakMap<CSSStyleSheet, string>();
+            this._mapStyleSheetIDToStyleSheet = new Map<string, CSSStyleSheet>();
+            this._mapStyleSheetIDToStyleSheetText = new Map<string, string>();
 
             this.styleSheetAdded(browser.document); // send cssAdded notificaitons
             browserHandler.postNotification("DOM.documentUpdated", null);
@@ -265,12 +319,162 @@ module Proxy {
             return processedResult;
         }
 
+        private getStyleSheetText(request: IWebKitRequest): IWebKitResult {
+            var styleSheetId: string = request.params.styleSheetId;
+            Assert.isTrue(this._mapStyleSheetIDToStyleSheet.has(styleSheetId), "styleSheet does not exist");
+
+            var cssText = this.getCssText(styleSheetId);
+
+            var processedResult: IWebKitResult = {
+                result: {
+                    text: cssText
+                }
+            };
+
+            // We can't actually update the CSSText in _mapStyleSheetIDToStyleSheetText to refect the real CSStext here, because we may still
+            // get edits based on line/column returned in getMatchedStylesForNode or a prior edit
+            return processedResult;
+        }
+
+        private PropertyMap(a: any): any {
+
+        }
+
+        private setPropertyText(request: IWebKitRequest): IWebKitResult {
+            var styleSheetId: string = request.params.styleSheetId;
+            var text: string = request.params.text;
+            var props = text.split(":");
+
+            var styleSheet: CSSStyleSheet = this._mapStyleSheetIDToStyleSheet.get(styleSheetId);
+            var cssText = this.getCssText(styleSheetId);
+
+            var range: IRange = request.params.range;
+            var startoffset = this.getOffsetfromLineCol(cssText, range.startLine, range.startColumn);
+            var endoffset = this.getOffsetfromLineCol(cssText, range.endLine, range.endColumn);
+            cssText = cssText.substring(0, startoffset) + text + cssText.substring(endoffset);
+            this._mapStyleSheetIDToStyleSheetText.set(styleSheetId, cssText);
+
+            // This does not actually set styleSheet.cssText equal to our modified CSSText, instead Trident parses the new css and constructs stylesheet.CSSText from the rules/properties it detects
+            // in particular, this means if we disable a property, rather an appearing commented out, that property will dissapear from styleSheet.cssText
+            styleSheet.cssText = cssText; 
+
+            var parsedCss = new CssParser(cssText).parseCss();
+            var modifiedRuleOffset = this.getOffsetfromLineCol(cssText, range.startLine, range.startColumn);
+            for (var i = 0; i < parsedCss.length; i++) { 
+                if (parsedCss[i].originalOffset <= modifiedRuleOffset && parsedCss[i].endOffset >= modifiedRuleOffset) {
+                    var modifiedRule = parsedCss[i];
+                    break;
+                } 
+            }
+
+            Assert.hasValue(modifiedRule, "supplied offset is not part of a rule");
+
+            var cssProperties = modifiedRule.declarations.map((property) => {
+                var rowCol = this.getLineColFromOffset(cssText, property.originalOffset);
+                var endRowCol = this.getLineColFromOffset(cssText, property.endOffset);
+
+                return {
+                    name: property.property,
+                    value: property.value,
+                    text: cssText.substring(property.originalOffset, property.endOffset), // this does not seem quite right
+                    implicit: false,
+                    disabled: property.isDisabled,
+                    range: {
+                        startLine: rowCol.line,
+                        endLine: endRowCol.line,
+                        startColumn: rowCol.column,
+                        endColumn: endRowCol.column
+                    }
+                };
+            });
+
+            var parsedStyleList = diagnostics.styles.getParsedPropertyList(styleSheet.rules[0].style);
+
+            // send cssStyleSheetChanged notification 
+            var styleSheetChangedParams = {
+                styleSheetId: styleSheetId
+            };
+            browserHandler.postNotification("CSS.styleSheetChanged", styleSheetChangedParams);
+
+            var ruleStart = this.getLineColFromOffset(cssText, modifiedRule.originalOffset);
+            var ruleEnd = this.getLineColFromOffset(cssText, modifiedRule.endOffset);
+
+            Assert.isTrue(modifiedRule.declarations.length > 0, "Editing rules with no valid styles is not yet supported");
+
+            var styleCssText = cssText.substring(modifiedRule.declarations[0].originalOffset, modifiedRule.declarations[modifiedRule.declarations.length - 1].endOffset);
+            var processedResult: IWebKitResult = {
+                result: {
+                    style: {
+                        cssProperties: cssProperties,
+                        shorthandEntries: [],
+                        styleSheetId: styleSheetId,
+                        range: {
+                            startLine: ruleStart.line,
+                            endLine: ruleEnd.line,
+                            startColumn: ruleStart.column,
+                            endColumn: ruleEnd.column
+                        },
+                        cssText: styleCssText
+                    }
+                }
+            };
+
+            return processedResult;
+        }
+
+        private getLineColFromOffset(text: string, offset: number): ILineCol {
+            Assert.isTrue(offset < text.length, "invalid offset");
+            var line = 0;
+            var column = 0;
+            for (var i = 0; i < offset; i++) {
+                ++column;
+
+                if (text[i] === "\r" && text[i + 1] === "\n") { // "\r\n" is a single line break, so only count it once
+                    i++;
+                }
+
+                if (text[i] === "\r" || text[i] === "\n") {
+                    column = 0;
+                    ++line;
+                }
+            }
+
+            return {
+                line,
+                column
+            };
+        }
+
+        private getOffsetfromLineCol(text: string, line: number, col: number): number {
+            var curLine = 0;
+            var curCol = 0;
+            for (var i = 0; i < text.length; i++) {
+                if (curCol === col && curLine === line) {
+                    return i;
+                }
+
+                ++curCol;
+                if (text[i] === "\r" && text[i + 1] === "\n") { // "\r\n" is a single line break, so only count it once
+                    i++;
+                }
+
+                if (text[i] === "\r" || text[i] === "\n") {
+                    curCol = 0;
+                    ++curLine;
+                }
+            }
+
+            Assert.fail("Invalid Line and Column");
+            return -1;
+        }
+
         private styleSheetAdded(doc: Document): void {
             this._sentCSS.add(doc);
             for (var i = 0; i < doc.styleSheets.length; i++) {
-                var styleSheet: StyleSheet = doc.styleSheets[i];
-                var styleSheetID = this._nextAvailableStyleSheetUid++;
+                var styleSheet: CSSStyleSheet = <CSSStyleSheet>doc.styleSheets[i]; // todo: if non-css stylesheets exist hanlde it somehow
+                var styleSheetID: string = "" + this._nextAvailableStyleSheetUid++;
                 this._mapStyleSheetToStyleSheetID.set(styleSheet, styleSheetID);
+                this._mapStyleSheetIDToStyleSheet.set(styleSheetID, styleSheet);
 
                 var response: any = {
                     method: "CSS.styleSheetAdded",
@@ -296,37 +500,67 @@ module Proxy {
 
         private getJsonFromRule(rule: CSSStyleRule): any {
             var parsedStyleList: DiagnosticsOM.IStylePropertyList = diagnostics.styles.getParsedPropertyList(rule.style);
-            var sourceLoc: DiagnosticsOM.ISourceLocation = diagnostics.styles.getSourceLocation(rule.style);
+            var styleSheet = rule.parentStyleSheet;
 
-            // Chrome expects different range for selector and properties, and the start+end location for both
-            // IE only gives us the start of location of the selector so this is a best approximation
-            var rangeObj = { startLine: sourceLoc.line, startColumn: sourceLoc.column, endLine: sourceLoc.line + 1, endColumn: 0 };
+            Assert.isTrue(this._mapStyleSheetToStyleSheetID.has(rule.parentStyleSheet), "could not find styleSheetId");
+            var styleSheetId = this._mapStyleSheetToStyleSheetID.get(rule.parentStyleSheet);
+            var cssText = this.getCssText(styleSheetId);
 
-            var json_rule: any = {};
-            json_rule.rule = {};
-            json_rule.rule.selectorList = {};
-            json_rule.rule.selectorList.selectors = [({ value: rule.selectorText, range: rangeObj })];
-            json_rule.rule.selectorList.text = rule.selectorText;
-            json_rule.rule.origin = "regular";
-            json_rule.rule.style = {};
-            if (parsedStyleList.length > 0) {
-                json_rule.rule.style.cssProperties = [];
-                for (var i = 0; i < parsedStyleList.length; i++) {
-                    json_rule.rule.style.cssProperties.push({ name: parsedStyleList[i].propertyName, value: parsedStyleList[i].value });
-                    json_rule.rule.style.cssProperties[i].text = rule.style.cssText;
-                    json_rule.rule.style.cssProperties[i].range = rangeObj;
-                    json_rule.rule.style.cssProperties[i].implicit = false; // todo: see if there is a way to get this data from IE
-                    json_rule.rule.style.cssProperties[i].disabled = false; // todo: see if there is a way to get this data from IE
+            var parser = new CssParser(rule.parentStyleSheet.cssText);
+            var parsed = parser.parseCss();
+            for (var i = 0; i < styleSheet.rules.length; i++) {
+                if (styleSheet.rules[i] === rule) {
+                    var ruleindex = i;
                 }
             }
 
-            json_rule.rule.style.shorthandEntries = []; // todo: see if there is a way to get this data from IE
-            json_rule.rule.style.styleSheetId = "" + this._mapStyleSheetToStyleSheetID.get(rule.parentStyleSheet);
-            json_rule.rule.style.range = rangeObj;
-            json_rule.rule.style.cssText = rule.style.cssText;
-            json_rule.rule.styleSheetId = "" + this._mapStyleSheetToStyleSheetID.get(rule.parentStyleSheet);
-            json_rule.matchingSelectors = [0]; // todo: see if there is a way to get this data from IE
-            return json_rule;
+            // Chrome expects different range for selector and properties, and the start+end location for both
+            // IE only gives us the start of location of the selector so this is a best approximation
+            var startLineCol = this.getLineColFromOffset(cssText, parsed[ruleindex].originalOffset);
+            var endLineCol = this.getLineColFromOffset(cssText, parsed[ruleindex].endOffset);
+
+            // todo fixme: check to make sure json parsed correctly, fill in garbage otherwise
+            var ruleRange = { startLine: startLineCol.line, startColumn: startLineCol.column, endLine: endLineCol.line, endColumn: endLineCol.column };
+
+            var jsonRule: any = {
+                rule: {
+                    selectorList: {
+                        selectors: [({ value: rule.selectorText, range: ruleRange })],
+                        text: rule.selectorText
+                    },
+                    origin: "regular",
+                    style: {
+                        shorthandEntries: [], // todo: see if there is a way to get this data from IE
+                        styleSheetId: styleSheetId,
+                        range: ruleRange,
+                        cssText: cssText
+                    },
+                    styleSheetId: styleSheetId
+                },
+                matchingSelectors: [0] // todo: see if there is a way to get this data from IE
+            };
+
+            if (parsedStyleList.length > 0) {
+                jsonRule.rule.style.cssProperties = parsed[ruleindex].declarations.map((property) => {
+                    startLineCol = this.getLineColFromOffset(cssText, property.originalOffset);
+                    endLineCol = this.getLineColFromOffset(cssText, property.endOffset);
+                    return {
+                        name: property.property,
+                        value: property.value,
+                        text: cssText.substring(property.originalOffset, property.endOffset),
+                        range: {
+                            startLine: startLineCol.line,
+                            startColumn: startLineCol.column,
+                            endLine: endLineCol.line,
+                            endColumn: endLineCol.column
+                        },
+                        implicit: false, // todo: see if there is a way to get this data from IE
+                        disabled: property.isDisabled // todo: this will never do anything because disabled rules will not be returned with list of valid rules
+                    };
+                });
+            }
+
+            return jsonRule;
         }
 
         // getInheritanceChain API only returns a partial inheritence chain containing only nodes that have styles attached to them. 
@@ -658,6 +892,13 @@ module Proxy {
             }
 
             return styleRules;
+        }
+
+        private getCssText(styleSheetId: string): string {
+            if (this._mapStyleSheetIDToStyleSheetText.has(styleSheetId)) {
+                return this._mapStyleSheetIDToStyleSheetText.get(styleSheetId);
+            }
+            return this._mapStyleSheetIDToStyleSheet.get(styleSheetId).cssText;
         }
 
         private highlightNode(elementToHighlight: Node): Boolean {
