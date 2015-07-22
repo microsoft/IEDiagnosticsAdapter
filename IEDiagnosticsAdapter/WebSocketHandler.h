@@ -84,4 +84,5 @@ private:
     map<HWND, IEInstance> m_instances;
     map<websocketpp::connection_hdl, HWND, owner_less<websocketpp::connection_hdl>> m_clientConnections;
     map<HWND, websocketpp::connection_hdl> m_proxyConnections;
+	string m_AdaptorLogging_EnvironmentVariable;
 };

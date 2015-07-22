@@ -33,7 +33,17 @@ m_port(9222)
     m_server.listen("0.0.0.0", port.str());
     m_server.start_accept();
 
-    cout << "Proxy server listening on port " << port.str() << "..." << endl;
+	CString AdaptorLogging_EnvironmentVariable;
+	DWORD ret = AdaptorLogging_EnvironmentVariable.GetEnvironmentVariable(L"AdapterLogging");
+	if (ret > 0 && AdaptorLogging_EnvironmentVariable == L"1") {
+		std::cout << "Logging enabled" << endl;
+		m_AdaptorLogging_EnvironmentVariable = "1";
+	} 
+	else {
+		m_AdaptorLogging_EnvironmentVariable = "";
+	}
+
+    std::cout << "Proxy server listening on port " << port.str() << "..." << endl;
 }
 
 // WebSocket Callbacks
@@ -207,8 +217,9 @@ void WebSocketHandler::OnMessage(websocketpp::connection_hdl hdl, server::messag
 {
     if (m_clientConnections.find(hdl) != m_clientConnections.end())
     {
-		// uncomment this to dump logging info to the adaptor
-		//std::cout << msg->get_payload().c_str() << "\n";
+		if(m_AdaptorLogging_EnvironmentVariable == "1") {
+			std::cout << msg->get_payload().c_str() << "\n";
+		}
 
         // Message from WebKit client to IE
         CString message(msg->get_payload().c_str());
@@ -347,8 +358,9 @@ void WebSocketHandler::RunServer() {
 
 void WebSocketHandler::OnMessageFromIE(string message, HWND proxyHwnd)
 {
-	// uncomment this to dump logging info to the adaptor
-	//std::cout << message << "\n";
+	if (m_AdaptorLogging_EnvironmentVariable == "1") {
+		std::cout << message << "\n";
+	}
 
     // post this message to our IO queue so the server thread will pick it up and handle it synchronously
     this->m_server.get_io_service().post(boost::bind(&WebSocketHandler::OnMessageFromIEHandler, this, message, proxyHwnd));

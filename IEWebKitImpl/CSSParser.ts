@@ -39,10 +39,7 @@ module Proxy {
         constructor(text: string) {
             this._rootNodes = [];
             this._text = text;
-        }
 
-        /** Returns an array containing ICssRuleset and ICssMediaQuery objects */
-        public parseCss(): any[] {
             // Statement control
             this._inComment = false;
             this._currentQuotationMark = "";
@@ -56,7 +53,32 @@ module Proxy {
             this._currentRuleset = null;
             this._currentDeclaration = null;
             this._currentMediaQuery = null;
+        }
 
+        /** Returns an array containing ICssRuleset and ICssMediaQuery objects */
+        public parseCss(): any[] {
+            this.parseText();
+
+            // Put any text that wasn't valid CSS into it's own node at the end of the file
+            this.handleIncompleteBlocks();
+            return this._rootNodes;
+        }
+
+        /** Returns an array containing a single rule, ICssRuleset and ICssMediaQuery objects */
+        public parseInlineCss(): ICssRuleset {
+            // inline CSS is just a list of properties. Set up the parser state to read them correctly.
+            this._currentRuleset = { originalOffset: this._lastCheckpoint, selector: "DoesNotMatter", declarations: [] };
+            this._state = CssToken.Property;
+
+            this.parseText();
+
+            Assert.isTrue(this._currentRuleset && this._rootNodes.length === 0, "Text was not valid inline CSS");
+            this._currentRuleset.endOffset = this._text.length;
+
+            return this._currentRuleset;
+        }
+
+        private parseText(): void {
             for (this._index = 0; this._index < this._text.length; this._index++) {
                 if (this.handleQuoteCharacter()) {
                 } else if (this.handleCommentCharacter()) {
@@ -70,11 +92,6 @@ module Proxy {
                 } else if (this.handleSelectorCloseBracket()) {
                 }
             }
-
-            // Put any text that wasn't valid CSS into it's own node at the end of the file
-            this.handleIncompleteBlocks();
-
-            return this._rootNodes;
         }
 
         private handleMediaQueryStart(): boolean {
@@ -218,7 +235,7 @@ module Proxy {
             }
 
             if (this._lastCheckpoint < this._text.length - 1) {
-                var textNode: ICssRuleset = { selector: this._text.substr(this._lastCheckpoint), originalOffset: this._lastCheckpoint, declarations: null, endOffset: this._index + 1};
+                var textNode: ICssRuleset = { selector: this._text.substr(this._lastCheckpoint), originalOffset: this._lastCheckpoint, declarations: null, endOffset: this._index + 1 };
                 this._rootNodes.push(textNode);
             }
         }

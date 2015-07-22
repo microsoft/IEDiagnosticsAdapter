@@ -100,7 +100,7 @@ module Proxy {
                     break;
 
                 case "getAttributes":
-                    // todo: impliment this
+                    processedResult = this.getAttributes(request);
                     break;
 
                 case "setPropertyText":
@@ -132,33 +132,8 @@ module Proxy {
                         break;
                     }
 
-                    // todo: Implement this function as more than a stub
-                    var nodeId = request.params.nodeId;
-                    var styleSheetID: string;
-                    if (!this._mapNodeIdToInlineStyleSheetId.has(nodeId)) {
-                        styleSheetID = "" + this._nextAvailableStyleSheetUid++;
-                        this._mapInlineStyleSheetIdToNodeId.set(styleSheetID, nodeId);
-                        this._mapNodeIdToInlineStyleSheetId.set(nodeId, styleSheetID);
-                    } else {
-                        styleSheetID = this._mapNodeIdToInlineStyleSheetId.get(request.params.nodeId);
-                    }
-
-                    processedResult = {
-                        result: {
-                            inlineStyle: {
-                                cssProperties: [],
-                                shorthandEntries: [],
-                                styleSheetId: styleSheetID,
-                                range: {
-                                    startLine: 0,
-                                    startColumn: 0,
-                                    endLine: 0,
-                                    endColumn: 0,
-                                },
-                                cssText: ""
-                            }
-                        }
-                    };
+                    processedResult = this.getInlineStylesForNode(request);
+                   
                     break;
 
                 case "getMatchedStylesForNode":
@@ -336,59 +311,52 @@ module Proxy {
             return processedResult;
         }
 
-        private PropertyMap(a: any): any {
-
-        }
-
         private setPropertyText(request: IWebKitRequest): IWebKitResult {
             var styleSheetId: string = request.params.styleSheetId;
             var text: string = request.params.text;
-            var props = text.split(":");
-
-            var styleSheet: CSSStyleSheet = this._mapStyleSheetIDToStyleSheet.get(styleSheetId);
-            var cssText = this.getCssText(styleSheetId);
-
             var range: IRange = request.params.range;
+
+            var cssText = this.getCssText(styleSheetId);
             var startoffset = this.getOffsetfromLineCol(cssText, range.startLine, range.startColumn);
             var endoffset = this.getOffsetfromLineCol(cssText, range.endLine, range.endColumn);
             cssText = cssText.substring(0, startoffset) + text + cssText.substring(endoffset);
             this._mapStyleSheetIDToStyleSheetText.set(styleSheetId, cssText);
 
-            // This does not actually set styleSheet.cssText equal to our modified CSSText, instead Trident parses the new css and constructs stylesheet.CSSText from the rules/properties it detects
-            // in particular, this means if we disable a property, rather an appearing commented out, that property will dissapear from styleSheet.cssText
-            styleSheet.cssText = cssText; 
+            var styleSheet = this._mapStyleSheetIDToStyleSheet.get(styleSheetId);
 
-            var parsedCss = new CssParser(cssText).parseCss();
-            var modifiedRuleOffset = this.getOffsetfromLineCol(cssText, range.startLine, range.startColumn);
-            for (var i = 0; i < parsedCss.length; i++) { 
-                if (parsedCss[i].originalOffset <= modifiedRuleOffset && parsedCss[i].endOffset >= modifiedRuleOffset) {
-                    var modifiedRule = parsedCss[i];
-                    break;
-                } 
+            // Chrome stores inline styles as a Stylesheet, We can't actualy refrence that styleSheet because it does not exist in IE
+            if (!styleSheet) { // handle the case of editing an "inline style sheet" 
+                var node = this.getNode(this._mapInlineStyleSheetIdToNodeId.get(styleSheetId));
+                var styleAttribute = browser.document.createAttribute("style");
+                styleAttribute.value = cssText;
+                node.attributes.setNamedItem(styleAttribute);
+
+                // send attributeModified notification 
+                var attributeModifiedParams = {
+                    nodeId: this._mapInlineStyleSheetIdToNodeId.get(styleSheetId),
+                    name: "style",
+                    value: cssText
+                };
+                browserHandler.postNotification("DOM.attributeModified", attributeModifiedParams);
+
+                modifiedRule = new CssParser(cssText).parseInlineCss();
+            } else { // this case is for normal styleSheets
+                // This line does not actually set styleSheet.cssText equal to our modified CSSText, instead Trident parses the new css and constructs stylesheet.CSSText from the rules/properties it detects
+                // in particular, this means if we disable a property, rather an appearing commented out, that property will dissapear from styleSheet.cssText
+                styleSheet.cssText = cssText; 
+
+                var parsedCss = new CssParser(cssText).parseCss();
+                var modifiedRuleOffset = this.getOffsetfromLineCol(cssText, range.startLine, range.startColumn);
+                for (var i = 0; i < parsedCss.length; i++) {
+                    if (parsedCss[i].originalOffset <= modifiedRuleOffset && parsedCss[i].endOffset >= modifiedRuleOffset) {
+                        var modifiedRule = parsedCss[i];
+                        break;
+                    }
+                }
             }
 
             Assert.hasValue(modifiedRule, "supplied offset is not part of a rule");
-
-            var cssProperties = modifiedRule.declarations.map((property) => {
-                var rowCol = this.getLineColFromOffset(cssText, property.originalOffset);
-                var endRowCol = this.getLineColFromOffset(cssText, property.endOffset);
-
-                return {
-                    name: property.property,
-                    value: property.value,
-                    text: cssText.substring(property.originalOffset, property.endOffset), // this does not seem quite right
-                    implicit: false,
-                    disabled: property.isDisabled,
-                    range: {
-                        startLine: rowCol.line,
-                        endLine: endRowCol.line,
-                        startColumn: rowCol.column,
-                        endColumn: endRowCol.column
-                    }
-                };
-            });
-
-            var parsedStyleList = diagnostics.styles.getParsedPropertyList(styleSheet.rules[0].style);
+            var cssProperties = this.convertParsedCSSToJSONObject(modifiedRule.declarations, cssText);
 
             // send cssStyleSheetChanged notification 
             var styleSheetChangedParams = {
@@ -423,7 +391,11 @@ module Proxy {
         }
 
         private getLineColFromOffset(text: string, offset: number): ILineCol {
-            Assert.isTrue(offset < text.length, "invalid offset");
+            if (offset === 0) {
+                return { line: 0, column: 0 };
+            }
+
+            Assert.isTrue(offset <= text.length, "invalid offset");
             var line = 0;
             var column = 0;
             for (var i = 0; i < offset; i++) {
@@ -440,8 +412,8 @@ module Proxy {
             }
 
             return {
-                line,
-                column
+                line: line,
+                column: column
             };
         }
 
@@ -462,6 +434,10 @@ module Proxy {
                     curCol = 0;
                     ++curLine;
                 }
+            }
+
+            if (curCol === col && curLine === line) {
+                return text.length; // one past the end is a valid offset as long as it will be used as an ending offset
             }
 
             Assert.fail("Invalid Line and Column");
@@ -541,23 +517,7 @@ module Proxy {
             };
 
             if (parsedStyleList.length > 0) {
-                jsonRule.rule.style.cssProperties = parsed[ruleindex].declarations.map((property) => {
-                    startLineCol = this.getLineColFromOffset(cssText, property.originalOffset);
-                    endLineCol = this.getLineColFromOffset(cssText, property.endOffset);
-                    return {
-                        name: property.property,
-                        value: property.value,
-                        text: cssText.substring(property.originalOffset, property.endOffset),
-                        range: {
-                            startLine: startLineCol.line,
-                            startColumn: startLineCol.column,
-                            endLine: endLineCol.line,
-                            endColumn: endLineCol.column
-                        },
-                        implicit: false, // todo: see if there is a way to get this data from IE
-                        disabled: property.isDisabled // todo: this will never do anything because disabled rules will not be returned with list of valid rules
-                    };
-                });
+                jsonRule.rule.style.cssProperties = this.convertParsedCSSToJSONObject(parsed[ruleindex].declarations, cssText);
             }
 
             return jsonRule;
@@ -618,6 +578,82 @@ module Proxy {
             }
 
             return processedResult;
+        }
+
+        private getAttributes(request: IWebKitRequest): IWebKitResult {
+            var nodeId: number = request.params.nodeId;
+
+            var node: HTMLElement = <HTMLElement>this.getNode(nodeId);
+            var attributes: string[] = [];
+            for (var i = 0; i < node.attributes.length; i++) {
+                var attribute = node.attributes.item(i);
+                attributes.push(attribute.name);
+                attributes.push(attribute.value);
+            }
+
+            var processedResult: IWebKitResult = {
+                result: {
+                    attributes: attributes
+                }
+            };
+
+            return processedResult;
+        }
+
+        private getInlineStylesForNode(request: IWebKitRequest): IWebKitResult {
+            var nodeId = request.params.nodeId;
+            var styleSheetId: string;
+            if (!this._mapNodeIdToInlineStyleSheetId.has(nodeId)) {
+                styleSheetId = "" + this._nextAvailableStyleSheetUid++;
+                this._mapInlineStyleSheetIdToNodeId.set(styleSheetId, nodeId);
+                this._mapNodeIdToInlineStyleSheetId.set(nodeId, styleSheetId);
+            } else {
+                styleSheetId = this._mapNodeIdToInlineStyleSheetId.get(request.params.nodeId);
+            }
+            
+            var cssText = this.getCssText(styleSheetId);
+            var parsed = new CssParser(cssText).parseInlineCss();
+            var cssProperties = this.convertParsedCSSToJSONObject(parsed.declarations, cssText);
+            var endLineCol = this.getLineColFromOffset(cssText, cssText.length);
+
+            var processedResult: IWebKitResult = {
+                result: {
+                    inlineStyle: {
+                        cssProperties: cssProperties,
+                        shorthandEntries: [],
+                        styleSheetId: styleSheetId,
+                        range: {
+                            startLine: 0,
+                            startColumn: 0,
+                            endLine: endLineCol.line,
+                            endColumn: endLineCol.column,
+                        },
+                        cssText: cssText
+                    }
+                }
+            };
+
+            return processedResult;
+        }
+
+        private convertParsedCSSToJSONObject(declarations: ICssDeclaration[], cssText: string): any {
+            return declarations.map((property: ICssDeclaration) => {
+                var rowCol = this.getLineColFromOffset(cssText, property.originalOffset);
+                var endRowCol = this.getLineColFromOffset(cssText, property.endOffset);
+                return {
+                    name: property.property,
+                    value: property.value,
+                    text: cssText.substring(property.originalOffset, property.endOffset), // this does not seem quite right
+                    implicit: false,
+                    disabled: property.isDisabled,
+                    range: {
+                        startLine: rowCol.line,
+                        endLine: endRowCol.line,
+                        startColumn: rowCol.column,
+                        endColumn: endRowCol.column
+                    }
+                };
+            });
         }
 
         // todo: Implement excludePseudo, and excludeInherited arguments
@@ -898,7 +934,13 @@ module Proxy {
             if (this._mapStyleSheetIDToStyleSheetText.has(styleSheetId)) {
                 return this._mapStyleSheetIDToStyleSheetText.get(styleSheetId);
             }
-            return this._mapStyleSheetIDToStyleSheet.get(styleSheetId).cssText;
+
+            var styleSheet = this._mapStyleSheetIDToStyleSheet.get(styleSheetId);
+            if (styleSheet) {
+                return styleSheet.cssText;
+            }
+
+            return "";
         }
 
         private highlightNode(elementToHighlight: Node): Boolean {
