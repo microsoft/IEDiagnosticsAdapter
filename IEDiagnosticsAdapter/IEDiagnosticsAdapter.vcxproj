@@ -176,6 +176,7 @@
     <ClInclude Include="IEDiagnosticsAdapter.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="AdapterTest.h" />
     <ClInclude Include="WebSocketHandler.h" />
   </ItemGroup>
   <ItemGroup>
@@ -184,6 +185,7 @@
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="AdapterTest.cpp" />
     <ClCompile Include="WebSocketHandler.cpp" />
   </ItemGroup>
   <ItemGroup>

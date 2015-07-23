@@ -5,10 +5,9 @@
 #pragma once
 
 #include "Proxy_h.h"
-#include <iostream>
+#include "AdapterTest.h"
 #include <websocketpp/config/asio_no_tls.hpp>
 #include <websocketpp/server.hpp>
-
 typedef websocketpp::server<websocketpp::config::asio> server;
 
 struct IEInstance
@@ -58,16 +57,18 @@ public:
 
     // Windows messages that IEDiagnosticsAdapter will receive and parse, then have WebSocketHandler manage
     void OnMessageFromIE(string message, HWND proxyHwnd);
-
+	
+	// functions used by test code
+	HRESULT PopulateIEInstances();
+	void ConnectToUrl(const string &url);
+	HRESULT SendMessageToInstance(_In_ HWND& instanceHwnd, _In_ CString& message);
 private:
     // Helper functions
-    HRESULT PopulateIEInstances();
     HRESULT ConnectToInstance(_In_ IEInstance& instance);
-    HRESULT SendMessageToInstance(_In_ HWND& instanceHwnd, _In_ CString& message);
     HRESULT InjectScript(_In_ const LPCWSTR id, _In_ const LPCWSTR scriptName, _In_ const DWORD resourceId, _In_ HWND hwnd);
 
     // window message handlers
-    void OnMessageFromIEHandler(string message, HWND proxyHwnd);
+	void OnMessageFromIEHandler(string message, HWND proxyHwnd);
 
     // WebSocket Callbacks
     void OnHttp(websocketpp::connection_hdl hdl);
@@ -85,4 +86,5 @@ private:
     map<websocketpp::connection_hdl, HWND, owner_less<websocketpp::connection_hdl>> m_clientConnections;
     map<HWND, websocketpp::connection_hdl> m_proxyConnections;
 	string m_AdaptorLogging_EnvironmentVariable;
+	AdapterTest m_adapterTest;
 };

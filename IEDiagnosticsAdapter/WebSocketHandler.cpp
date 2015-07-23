@@ -8,6 +8,7 @@
 #include "Helpers.h"
 #include "resource.h"
 #include "Strsafe.h"
+#include "AdapterTest.h"
 #include <VersionHelpers.h>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <Psapi.h>
@@ -16,7 +17,8 @@
 WebSocketHandler::WebSocketHandler(_In_ LPCWSTR rootPath, _In_ HWND hWnd) :
 m_rootPath(rootPath),
 m_hWnd(hWnd),
-m_port(9222)
+m_port(9222),
+m_adapterTest(this, TestMode::NORMAL)
 {
     // Initialize the websocket server
     m_server.clear_access_channels(websocketpp::log::alevel::all);
@@ -154,7 +156,6 @@ void WebSocketHandler::OnHttp(websocketpp::connection_hdl hdl)
     con->set_status(websocketpp::http::status_code::ok);
 }
 
-
 bool WebSocketHandler::OnValidate(websocketpp::connection_hdl hdl)
 {
     server::connection_ptr con = m_server.get_con_from_hdl(hdl);
@@ -200,6 +201,13 @@ bool WebSocketHandler::OnValidate(websocketpp::connection_hdl hdl)
                         m_clientConnections[hdl] = i.second.connectionHwnd;
                         m_proxyConnections[i.second.connectionHwnd] = hdl;
 
+						if (m_adapterTest.m_testMode == TestMode::RECORD) {
+							// convert i.second.url from a CstringW to a normal std::string so we can record it 
+							const std::wstring wideUrlString(i.second.url.GetString());
+							const std::string urlString(wideUrlString.begin(), wideUrlString.end());
+							m_adapterTest.handleRecord(urlString);
+						}
+
                         cout << "Client connection accepted for: " << resource << " as: " << i.second.hwnd << endl;
                         return true;
                     }
@@ -215,11 +223,19 @@ bool WebSocketHandler::OnValidate(websocketpp::connection_hdl hdl)
 
 void WebSocketHandler::OnMessage(websocketpp::connection_hdl hdl, server::message_ptr msg)
 {
+	if (m_adapterTest.m_testMode == TestMode::TEST)
+	{
+		return;
+	}
+
     if (m_clientConnections.find(hdl) != m_clientConnections.end())
     {
-		if(m_AdaptorLogging_EnvironmentVariable == "1") {
+		if(m_AdaptorLogging_EnvironmentVariable == "1")
+		{
 			std::cout << msg->get_payload().c_str() << "\n";
 		}
+		
+		m_adapterTest.handleRecord("send:" + string(msg->get_payload().c_str()));
 
         // Message from WebKit client to IE
         CString message(msg->get_payload().c_str());
@@ -247,10 +263,11 @@ void WebSocketHandler::OnClose(websocketpp::connection_hdl hdl)
 
 		m_proxyConnections.erase(m_clientConnections[hdl]);
 		m_clientConnections.erase(hdl);
+		m_adapterTest.closeRecord();
 	}
 }
-// Helper functions
 
+// Helper functions
 HRESULT WebSocketHandler::PopulateIEInstances()
 {
     map<HWND, IEInstance> current;
@@ -367,6 +384,13 @@ void WebSocketHandler::OnMessageFromIE(string message, HWND proxyHwnd)
 }
 
 void WebSocketHandler::OnMessageFromIEHandler(string message, HWND proxyHwnd) {
+	m_adapterTest.handleRecord("test:" + message);
+	if (m_adapterTest.m_testMode == TestMode::TEST)
+	{
+		m_adapterTest.ValidateMessageFromIE(message, proxyHwnd);
+		return;
+	}
+
     if (m_proxyConnections.find(proxyHwnd) != m_proxyConnections.end())
     {
         // Forward the message to the websocket
@@ -388,6 +412,26 @@ void WebSocketHandler::OnMessageFromIEHandler(string message, HWND proxyHwnd) {
         }
     }
 }
+
+// Function to let tests automaticly connect to the correct tab
+void WebSocketHandler::ConnectToUrl(const string &url) {
+	for (auto& i : m_instances)
+	{
+		if (i.second.url == CString(url.c_str()) && ::IsWindow(i.second.hwnd))
+		{
+			HRESULT hr = this->ConnectToInstance(i.second);
+			if (hr == S_OK)
+			{
+				cout << "Connected to " << url << " begining test" << endl;
+				m_adapterTest.SendTestMessagesToIE(i.second.connectionHwnd);
+				return;
+			}
+		}
+	}
+	
+	assert(false && "Could not find IE instance to attach to");
+}
+
 
 HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
 {
