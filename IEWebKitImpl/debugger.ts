@@ -223,8 +223,8 @@ module Proxy {
             this._debugger.addEventListener("onUpdateDocuments", (documents: IDocument[]) => this.onUpdateDocuments(documents));
             this._debugger.addEventListener("onResolveBreakpoints", (breakpoints: IResolvedBreakpointInfo[]) => this.onResolveBreakpoints(breakpoints));
             this._debugger.addEventListener("onBreak", (breakEventInfo: IBreakEventInfo) => this.onBreak(breakEventInfo));
-
-            host.addEventListener("onmessage", (data: string) => this.onMessage(data));
+            
+            host.addEventListener("onmessage",(data: string) => this.onMessage(data));
         }
 
         private onMessage(data: string): void {
@@ -241,6 +241,7 @@ module Proxy {
 
             // Process a successful request
             if (request) {
+                telemetryHandler.track(request.method);
                 var methodParts = request.method.split(".");
 
                 if (!this._isAtBreakpoint && methodParts[0] !== "Debugger" && methodParts[0] !== "Custom") {
@@ -264,6 +265,7 @@ module Proxy {
                                 host.postMessageToEngine("browser", this._isAtBreakpoint, "{\"method\":\"Custom.toolsDisconnected\"}");
                                 this._debugger.disconnect();
                                 this._isEnabled = false;
+                                telemetryHandler.stopSession();
                                 break;
 
                             default:

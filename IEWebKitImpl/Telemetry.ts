@@ -30,7 +30,7 @@
             }
         }
 
-        public endSession(): void {
+        public stopSession(): void {
             try{
                 this._currentSession.end();
                 this.sendSession(this._currentSession);
@@ -52,7 +52,7 @@
         private sendSession(sessionToSend:Session): void {
             var data = "";
 
-            data = "startDate="     + sessionToSend.startDate;
+            data = "startDate="     + sessionToSend.startDate.toString();;
             data = "&duration="     + sessionToSend.duration;
             data = "&clientId="     + sessionToSend.clientId;
             data = "&appId="        + sessionToSend.appId;

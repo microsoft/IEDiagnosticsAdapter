@@ -53,7 +53,7 @@ module Proxy {
         }
 
         public stopTelemetry() {
-            telemetryHandler.endSession();
+            telemetryHandler.stopSession();
         }
 
         private addNavigateListener(): void {
@@ -83,7 +83,6 @@ module Proxy {
 
                     // Process a successful request on the correct thread
                     if (request) {
-                        telemetryHandler.track(request.method);
 
                         var methodParts = request.method.split(".");
 
