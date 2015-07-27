@@ -20,6 +20,8 @@ BrowserHost::~BrowserHost()
     {
         this->DestroyWindow();
     }
+
+	this->StopTelemetry();
 }
 
 HRESULT BrowserHost::Initialize(_In_ HWND proxyHwnd, _In_ IUnknown* pWebControl)
@@ -43,6 +45,9 @@ HRESULT BrowserHost::Initialize(_In_ HWND proxyHwnd, _In_ IUnknown* pWebControl)
 
     hr = this->DispEventAdvise(m_spWebControl);
     FAIL_IF_NOT_S_OK(hr);
+
+	hr = this->StartTelemetry();
+	FAIL_IF_NOT_S_OK(hr);
 
     return hr;
 }
@@ -76,6 +81,68 @@ HRESULT BrowserHost::ProcessMessage(_In_ shared_ptr<MessagePacket> spPacket)
     FAIL_IF_NOT_S_OK(hr);
 
     return hr;
+}
+
+HRESULT BrowserHost::StartTelemetry()
+{
+	HRESULT hr = S_OK;
+
+	LPCWSTR clientId = L"";
+
+	CString wClientId(clientId);
+	CString telemetryData = L"{ \"clientId\": \"" + wClientId + L"\" }";
+
+	LPCWSTR propertyNames[] = { L"id", L"data" };
+	LPCWSTR propertyValues[] = { L"starttelemetry", CT2W(telemetryData) };
+	hr = m_spDiagnosticsEngine->FireScriptMessageEvent(propertyNames, propertyValues, _countof(propertyNames));
+
+	FAIL_IF_NOT_S_OK(hr);
+
+	return hr;
+}
+
+HRESULT BrowserHost::StopTelemetry()
+{
+	HRESULT hr = S_OK;
+
+	LPCWSTR propertyNames[] = { L"id", L"data" };
+	LPCWSTR propertyValues[] = { L"stoptelemetry", L"" };
+	hr = m_spDiagnosticsEngine->FireScriptMessageEvent(propertyNames, propertyValues, _countof(propertyNames));
+
+	FAIL_IF_NOT_S_OK(hr);
+
+	return hr;
+}
+
+CString BrowserHost::m_getClientId()
+{
+	/*
+	CString keyPath = L"";
+
+	CRegKey regKey;
+	CString clientId;
+
+	// First see if ther is already a key
+	if (regKey.Open(HKEY_LOCAL_MACHINE, keyPath, KEY_READ) == ERROR_SUCCESS)
+	{
+
+	}
+	else 
+	{
+		_TUCHAR *guidStr = 0x00;
+
+		GUID *pguid = 0x00;
+
+		pguid = new GUID;
+
+		CoCreateGuid(pguid);
+		UuidToString(pguid, &guidStr);
+
+		delete pguid;
+
+	}
+	*/
+	return L"Test_ID";
 }
 
 // IDiagnosticsScriptEngineSite

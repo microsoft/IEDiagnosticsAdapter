@@ -33,6 +33,7 @@
     <TypeScriptCompile Include="Interfaces.d.ts" />
     <TypeScriptCompile Include="Page.ts" />
     <TypeScriptCompile Include="Runtime.ts" />
+    <TypeScriptCompile Include="Telemetry.ts" />
   </ItemGroup>
   <ItemGroup />
   <PropertyGroup>

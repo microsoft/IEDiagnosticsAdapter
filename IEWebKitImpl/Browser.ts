@@ -48,6 +48,14 @@ module Proxy {
             this._windowExternal.sendMessage("postMessage", JSON.stringify(notification)); // todo: should this be postMessage?
         }
 
+        public startTelemetry(clientId: string) {
+            telemetryHandler.startSession(clientId);
+        }
+
+        public stopTelemetry() {
+            telemetryHandler.endSession();
+        }
+
         private addNavigateListener(): void {
             browser.document.parentWindow.addEventListener("unload", (e: any) => {
                 pageHandler.onNavigate();
@@ -60,69 +68,86 @@ module Proxy {
         }
 
         private messageHandler(e: any): void {
-            if (e.id === "onmessage") {
-                // Try to parse the requested command
-                var request = null;
-                try {
-                    request = JSON.parse(e.data);
-                } catch (ex) {
-                    this.postResponse(0, {
-                        error: { description: "Invalid request" }
+            switch (e.id) {
+                case "onmessage":
+                    // Try to parse the requested command
+                    var request = null;
+                    try {
+                        request = JSON.parse(e.data);
+                    } catch (ex) {
+                        this.postResponse(0, {
+                            error: { description: "Invalid request" }
+                        });
+                        return;
+                    }
+
+                    // Process a successful request on the correct thread
+                    if (request) {
+                        telemetryHandler.track(request.method);
+
+                        var methodParts = request.method.split(".");
+
+                        // browser.document.parentWindow.alert(e.data);
+                        switch (methodParts[0]) {
+                            case "Custom":
+                                switch (methodParts[1]) {
+                                    case "toolsDisconnected":
+                                        Proxy.pageHandler.onNavigate();
+                                        Proxy.domHandler.onNavigate();
+                                        break;
+                                }
+
+                                break;
+
+                            case "Runtime":
+                                runtimeHandler.processMessage(methodParts[1], request);
+                                break;
+
+                            case "Page":
+                                pageHandler.processMessage(methodParts[1], request);
+                                break;
+
+                            case "DOM":
+                            case "CSS":
+                                domHandler.processMessage(methodParts[1], request);
+                                break;
+
+                            case "Worker":
+                                if (methodParts[1] === "canInspectWorkers") {
+                                    var processedResult: IWebKitResult = { result: false };
+                                    browserHandler.postResponse(request.id, processedResult);
+                                }
+
+                                break;
+
+                            default:
+                                this.postResponse(request.id, {});
+                                break;
+                        }
+                    }
+                    break;
+
+                case "onnavigation":
+                    this.postNotification("Page.frameNavigated", {
+                        frame: {
+                            id: "1500.1",
+                            url: browser.document.location.href,
+                            mimeType: (<any>browser.document).contentType,
+                            securityOrigin: (<any>browser.document.location).origin
+                        }
                     });
-                    return;
-                }
+                    break;
 
-                // Process a successful request on the correct thread
-                if (request) {
-                    var methodParts = request.method.split(".");
-
-                    // browser.document.parentWindow.alert(e.data);
-                    switch (methodParts[0]) {
-                        case "Custom":
-                            switch (methodParts[1]) {
-                                case "toolsDisconnected":
-                                    Proxy.pageHandler.onNavigate();
-                                    Proxy.domHandler.onNavigate();
-                                    break;
-                            }
-
-                            break;
-
-                        case "Runtime":
-                            runtimeHandler.processMessage(methodParts[1], request);
-                            break;
-
-                        case "Page":
-                            pageHandler.processMessage(methodParts[1], request);
-                            break;
-
-                        case "DOM":
-                        case "CSS":
-                            domHandler.processMessage(methodParts[1], request);
-                            break;
-
-                        case "Worker":
-                            if (methodParts[1] === "canInspectWorkers") {
-                                var processedResult: IWebKitResult = { result: false };
-                                browserHandler.postResponse(request.id, processedResult);
-                            }
-
-                            break;
-
-                        default:
-                            this.postResponse(request.id, {});
-                            break;
+                case "starttelemetry":
+                    var data = request = JSON.parse(e.data);
+                    if (data && data.clientId) {
+                        this.startTelemetry(data.clientId);
                     }
-                }
-            } else if (e.id === "onnavigation") {
-                this.postNotification("Page.frameNavigated", {
-                    frame: {
-                        id: "1500.1",
-                        url: browser.document.location.href,
-                        mimeType: (<any>browser.document).contentType,
-                        securityOrigin: (<any>browser.document.location).origin
-                    }
-                });
+                    break;
+
+                case "stoptelemetry":
+                    this.stopTelemetry();
+                    break;
             }
         }
     }
