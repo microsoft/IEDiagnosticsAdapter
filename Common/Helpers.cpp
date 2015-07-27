@@ -299,27 +299,28 @@ namespace Helpers
     {
         ::SetLastError(0);
         DWORD  verSize = ::GetFileVersionInfoSizeA(filePath, NULL);   
-        if (::GetLastError() != 0 && verSize == NULL && verSize == 0)
+        if (::GetLastError() != 0 || verSize == NULL || verSize == 0)
         {
-            return NULL;
+            return "";
         }
+
         std::vector<char> verData(verSize);
 
         if (!::GetFileVersionInfoA(filePath, NULL, verSize, &verData[0]))
         {
-            return NULL;
+            return "";
         }
 
-        VS_FIXEDFILEINFO* verInfo = nullptr;
+        VS_FIXEDFILEINFO* verInfo = 0;
         UINT sizeOfVersionNumber;
         if (!::VerQueryValueA(&verData[0], "\\", (LPVOID*)&verInfo, &sizeOfVersionNumber))
         {
-            return NULL;
+            return "";
         }
 
         if (sizeOfVersionNumber <= 0)
         {
-            return NULL;
+            return "";
         }
         
         // The signature value should always be 0xFEEF04BD according to MSDN
@@ -327,10 +328,10 @@ namespace Helpers
         // Though checking in case it's not as the bitwise operators below won't work if not
         if (verInfo->dwSignature != VERSION_SIGNATURE)
         {
-            return NULL;
+            return "";
         }
 
-        std::stringstream  ss;
+        std::stringstream ss;
         ss << ((verInfo->dwFileVersionMS >> 16) & 0xffff);
         ss << ".";
         ss << ((verInfo->dwFileVersionMS >> 0) & 0xffff);
