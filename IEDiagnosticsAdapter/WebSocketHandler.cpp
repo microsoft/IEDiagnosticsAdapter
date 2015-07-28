@@ -448,8 +448,8 @@ HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
             // Inject script  onto the debugger thread
             hr = this->InjectScript(L"debugger", L"Assert.js", IDR_ASSERT_SCRIPT, hwnd);
             hr = this->InjectScript(L"debugger", L"Common.js", IDR_COMMON_SCRIPT, hwnd);
-            hr = this->InjectScript(L"debugger", L"debuggerMain.js", IDR_DEBUGGER_SCRIPT, hwnd);
             hr = this->InjectScript(L"debugger", L"Telemetry.js", IDR_TELEMETRY_SCRIPT, hwnd);
+            hr = this->InjectScript(L"debugger", L"debuggerMain.js", IDR_DEBUGGER_SCRIPT, hwnd);
 
             // Connected
             instance.isConnected = true;

@@ -25,6 +25,7 @@
             try {
                 this.clientId = this.getClientId();
                 this._currentSession = new Session(this.clientId, this.appId, this.appVersion);
+                this._currentSession.start();
             } catch (ex) {
                 
             }
@@ -93,6 +94,7 @@
 
         public start(): void {
             this.startDate = new Date();
+            this.payload = {};
         }
 
         public end():void {
