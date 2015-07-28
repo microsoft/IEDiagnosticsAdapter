@@ -295,10 +295,10 @@ namespace Helpers
         return escapedValue;
     }
 
-    CStringA GetFileVersion(_In_ LPCSTR filePath)
+    CStringA GetFileVersion(_In_ LPCWSTR filePath)
     {
         ::SetLastError(0);
-        DWORD  verSize = ::GetFileVersionInfoSizeA(filePath, NULL);   
+        DWORD  verSize = ::GetFileVersionInfoSizeW(filePath, NULL);   
         if (::GetLastError() != 0 || verSize == NULL || verSize == 0)
         {
             return "";
@@ -306,14 +306,14 @@ namespace Helpers
 
         std::vector<char> verData(verSize);
 
-        if (!::GetFileVersionInfoA(filePath, NULL, verSize, &verData[0]))
+        if (!::GetFileVersionInfoW(filePath, NULL, verSize, &verData[0]))
         {
             return "";
         }
 
-        VS_FIXEDFILEINFO* verInfo = 0;
+        VS_FIXEDFILEINFO* pVerInfo = nullptr;
         UINT sizeOfVersionNumber;
-        if (!::VerQueryValueA(&verData[0], "\\", (LPVOID*)&verInfo, &sizeOfVersionNumber))
+        if (!::VerQueryValueW(&verData[0], L"\\", (LPVOID*)&pVerInfo, &sizeOfVersionNumber))
         {
             return "";
         }
@@ -326,19 +326,19 @@ namespace Helpers
         // The signature value should always be 0xFEEF04BD according to MSDN
         // https://msdn.microsoft.com/en-us/library/windows/desktop/ms646997(v=vs.85).aspx
         // Though checking in case it's not as the bitwise operators below won't work if not
-        if (verInfo->dwSignature != VERSION_SIGNATURE)
+        if (pVerInfo->dwSignature != VERSION_SIGNATURE)
         {
             return "";
         }
 
         std::stringstream ss;
-        ss << ((verInfo->dwFileVersionMS >> 16) & 0xffff);
+        ss << ((pVerInfo->dwFileVersionMS >> 16) & 0xffff);
         ss << ".";
-        ss << ((verInfo->dwFileVersionMS >> 0) & 0xffff);
+        ss << ((pVerInfo->dwFileVersionMS >> 0) & 0xffff);
         ss << ".";
-        ss << ((verInfo->dwFileVersionLS >> 16) & 0xffff);
+        ss << ((pVerInfo->dwFileVersionLS >> 16) & 0xffff);
         ss << ".";
-        ss << ((verInfo->dwFileVersionLS >> 0) & 0xffff);
+        ss << ((pVerInfo->dwFileVersionLS >> 0) & 0xffff);
                 
         return ss.str().c_str();
     }

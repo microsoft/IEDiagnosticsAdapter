@@ -30,5 +30,5 @@ namespace Helpers
     HRESULT StartDiagnosticsMode(_In_ IHTMLDocument2* pDocument, REFCLSID clsid, _In_ LPCWSTR path, REFIID iid, _COM_Outptr_opt_ void** ppOut);
 
     CStringA EscapeJsonString(_In_ const CString& value);
-    CStringA GetFileVersion(_In_ LPCSTR filePath);
+    CStringA GetFileVersion(_In_ LPCWSTR filePath);
 }
