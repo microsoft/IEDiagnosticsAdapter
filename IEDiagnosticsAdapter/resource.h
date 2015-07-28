@@ -11,3 +11,4 @@
 #define IDR_RUNTIME_SCRIPT               107
 #define IDR_ASSERT_SCRIPT                108
 #define IDR_CSSPARSER_SCRIPT             109
+#define IDR_TELEMETRY_SCRIPT             110

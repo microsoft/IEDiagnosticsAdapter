@@ -42,8 +42,6 @@ public:
     HRESULT Initialize(_In_ HWND proxyHwnd, _In_ IUnknown* pWebControl);
     HRESULT SetWebSocketHwnd(_In_ HWND websocketHwnd);
 	HRESULT ProcessMessage(_In_ shared_ptr<MessagePacket> spPacket);
-	HRESULT StartTelemetry();
-	HRESULT StopTelemetry();
 
 private:
 	HRESULT OnNavigateCompletePrivate(_In_ CComPtr<IUnknown>& spUnknown, _In_ CString& url);

@@ -21,9 +21,9 @@
             }         
         }
 
-        public startSession(clientId: string): void {
+        public startSession(): void {
             try {
-                this.clientId = clientId;
+                this.clientId = this.getClientId();
                 this._currentSession = new Session(this.clientId, this.appId, this.appVersion);
             } catch (ex) {
                 
@@ -68,6 +68,12 @@
             xhr.open("POST", TelemetryHandler.OT_ENDPOINT_URL, false);
 
             xhr.send(data);
+        }
+
+        private getClientId(): string {
+            var clientId: string = "Temp";
+
+            return clientId;
         }
     }
 

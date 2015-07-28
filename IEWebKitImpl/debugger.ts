@@ -225,6 +225,8 @@ module Proxy {
             this._debugger.addEventListener("onBreak", (breakEventInfo: IBreakEventInfo) => this.onBreak(breakEventInfo));
             
             host.addEventListener("onmessage",(data: string) => this.onMessage(data));
+
+            telemetryHandler.startSession();
         }
 
         private onMessage(data: string): void {

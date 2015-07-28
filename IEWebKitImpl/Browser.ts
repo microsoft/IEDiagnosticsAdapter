@@ -48,14 +48,6 @@ module Proxy {
             this._windowExternal.sendMessage("postMessage", JSON.stringify(notification)); // todo: should this be postMessage?
         }
 
-        public startTelemetry(clientId: string) {
-            telemetryHandler.startSession(clientId);
-        }
-
-        public stopTelemetry() {
-            telemetryHandler.stopSession();
-        }
-
         private addNavigateListener(): void {
             browser.document.parentWindow.addEventListener("unload", (e: any) => {
                 pageHandler.onNavigate();
@@ -135,17 +127,6 @@ module Proxy {
                             securityOrigin: (<any>browser.document.location).origin
                         }
                     });
-                    break;
-
-                case "starttelemetry":
-                    var data = request = JSON.parse(e.data);
-                    if (data && data.clientId) {
-                        this.startTelemetry(data.clientId);
-                    }
-                    break;
-
-                case "stoptelemetry":
-                    this.stopTelemetry();
                     break;
             }
         }
