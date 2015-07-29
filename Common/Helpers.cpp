@@ -112,7 +112,7 @@ namespace Helpers
             charsNeeded = ::ExpandEnvironmentStrings(path, expandedString.GetBuffer(charsNeeded), charsNeeded);
             ATLENSURE_RETURN_HR(charsNeeded > 0, AtlHresultFromLastError());
         }
-        expandedString.ReleaseBufferSetLength(charsNeeded - 1); 
+        expandedString.ReleaseBufferSetLength(charsNeeded - 1);
 
         return S_OK;
     }
@@ -241,7 +241,7 @@ namespace Helpers
         FAIL_IF_NOT_S_OK(hr);
         hr = spSafeArray.SetAt(2, ::SysAllocString(L""), FALSE);
         FAIL_IF_NOT_S_OK(hr);
-        hr = spSafeArray.SetAt(3, ::SysAllocString(L""), FALSE); 
+        hr = spSafeArray.SetAt(3, ::SysAllocString(L""), FALSE);
         FAIL_IF_NOT_S_OK(hr);
 
         // Start diagnostics mode
@@ -270,88 +270,76 @@ namespace Helpers
             auto c = value[i];
             switch (c)
             {
-                case '\\': escapedValue.Append("\\\\"); break;
-                case '\"': escapedValue.Append("\\\""); break;
-                case '\b': escapedValue.Append("\\b"); break;
-                case '\f': escapedValue.Append("\\f"); break;
-                case '\n': escapedValue.Append("\\n"); break;
-                case '\r': escapedValue.Append("\\r"); break;
-                case '\t': escapedValue.Append("\\t"); break;
-                default:
-                    if (c < 0x20 || c > 0x7e)
-                    {
-                        CStringA charLiteral;
-                        charLiteral.Format("\\u%04x", c);
-                        escapedValue.Append(charLiteral);
-                    }
-                    else
-                    {
-                        escapedValue.AppendChar((char)c);
-                    }
-                    break;
+            case '\\': escapedValue.Append("\\\\"); break;
+            case '\"': escapedValue.Append("\\\""); break;
+            case '\b': escapedValue.Append("\\b"); break;
+            case '\f': escapedValue.Append("\\f"); break;
+            case '\n': escapedValue.Append("\\n"); break;
+            case '\r': escapedValue.Append("\\r"); break;
+            case '\t': escapedValue.Append("\\t"); break;
+            default:
+                if (c < 0x20 || c > 0x7e)
+                {
+                    CStringA charLiteral;
+                    charLiteral.Format("\\u%04x", c);
+                    escapedValue.Append(charLiteral);
+                }
+                else
+                {
+                    escapedValue.AppendChar((char)c);
+                }
+                break;
             }
         }
 
         return escapedValue;
     }
 
-    CStringA GetFileVersion(_In_ LPCSTR filePath)
+    CStringA GetFileVersion(_In_ LPCWSTR filePath)
     {
-        CStringA versionString;
-        DWORD  verHandle = NULL;
-        UINT   size = 0;
-        LPBYTE lpBuffer = NULL;
-        DWORD  verSize = GetFileVersionInfoSizeA(filePath, &verHandle);
-
-
-        LPSTR verData = NULL;
-
-        if (verSize != NULL)
+        ::SetLastError(0);
+        DWORD  verSize = ::GetFileVersionInfoSizeW(filePath, NULL);   
+        if (::GetLastError() != 0 || verSize == NULL || verSize == 0)
         {
-            LPSTR verData = new char[verSize];
+            return "";
         }
-        else
+
+        std::vector<char> verData(verSize);
+
+        if (!::GetFileVersionInfoW(filePath, NULL, verSize, &verData[0]))
         {
-            return NULL;
+            return "";
+        }
+
+        VS_FIXEDFILEINFO* pVerInfo = nullptr;
+        UINT sizeOfVersionNumber;
+        if (!::VerQueryValueW(&verData[0], L"\\", (LPVOID*)&pVerInfo, &sizeOfVersionNumber))
+        {
+            return "";
+        }
+
+        if (sizeOfVersionNumber <= 0)
+        {
+            return "";
         }
         
-        if (!GetFileVersionInfoA(filePath, verHandle, verSize, verData))
-        {
-            return NULL;
-        }
-
-        if (!VerQueryValueA(verData, "\\", (VOID FAR* FAR*)&lpBuffer, &size))
-        {
-            return NULL;
-        }
-
-        if (size <= 0)
-        {
-            return NULL;
-        }
-
-        VS_FIXEDFILEINFO *verInfo = (VS_FIXEDFILEINFO *)lpBuffer;
-
         // The signature value should always be 0xFEEF04BD according to MSDN
         // https://msdn.microsoft.com/en-us/library/windows/desktop/ms646997(v=vs.85).aspx
         // Though checking in case it's not as the bitwise operators below won't work if not
-        if (verInfo->dwSignature != VERSION_SIGNATURE)
+        if (pVerInfo->dwSignature != VERSION_SIGNATURE)
         {
-            return NULL;
+            return "";
         }
 
-        std::stringstream  ss;
-        ss << ((verInfo->dwFileVersionMS >> 16) & 0xffff);
+        std::stringstream ss;
+        ss << ((pVerInfo->dwFileVersionMS >> 16) & 0xffff);
         ss << ".";
-        ss << ((verInfo->dwFileVersionMS >> 0) & 0xffff);
+        ss << ((pVerInfo->dwFileVersionMS >> 0) & 0xffff);
         ss << ".";
-        ss << ((verInfo->dwFileVersionLS >> 16) & 0xffff);
+        ss << ((pVerInfo->dwFileVersionLS >> 16) & 0xffff);
         ss << ".";
-        ss << ((verInfo->dwFileVersionLS >> 0) & 0xffff);
-        versionString = ss.str().c_str();        
-
-        delete[] verData;
-        
-        return versionString;
+        ss << ((pVerInfo->dwFileVersionLS >> 0) & 0xffff);
+                
+        return ss.str().c_str();
     }
 }
