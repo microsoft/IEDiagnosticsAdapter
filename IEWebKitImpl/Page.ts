@@ -84,6 +84,7 @@ module Proxy {
             var blobData: Blob = browser.takeVisualSnapshot(deviceWidth, deviceHeight, true);
             Common.convertBlobToBase64(blobData, (base64Data: string) => {
                 var frame: WebkitScreencastFrame = new WebkitScreencastFrame(frameNumber, base64Data, pageScaleFactor, offsetTop, deviceWidth, deviceHeight, scrollOffsetX, scrollOffsetY);
+                blobData.msClose();
                 callback(frame);
             });
         }
@@ -106,6 +107,7 @@ module Proxy {
             var timestamp = new Date();
             Common.convertBlobToBase64(blobData, (base64Data: string) => {
                 var frame: WebkitRecordedFrame = new WebkitRecordedFrame(base64Data, timestamp);
+                blobData.msClose();
                 callback(frame);
             });
         }
@@ -156,7 +158,7 @@ module Proxy {
 
     export class FrameRecorder {
         private _frameBuffer: IWebKitRecordedFrame[];
-        private _frameInterval: number = 64; // 60 fps is 16ms
+        private _frameInterval: number = 128; // 60 fps is 16ms
         private _capturedFrames: number;
         private _maxFrameCount: number;
 
@@ -164,7 +166,7 @@ module Proxy {
         }
 
         public start(maxFrameCount?: number): void {
-            this._maxFrameCount = maxFrameCount || 1000;
+            this._maxFrameCount = maxFrameCount || Math.floor((5 * (1000 / this._frameInterval))); // 5 seconds running time 
             this._frameBuffer = new Array();
             this._capturedFrames = 0;
             setInterval(this.recordingLoop, this._frameInterval);
