@@ -503,6 +503,11 @@ module Proxy {
 
             switch (method) {
                 case "canSetScriptSource":
+                    processedResult = {
+                        result: {
+                            result: false
+                        }
+                    };
                     break;
 
                 case "continueToLocation":
