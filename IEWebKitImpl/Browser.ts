@@ -59,6 +59,19 @@ module Proxy {
             this._windowExternal.sendMessage("alert", message);
         }
 
+        private sendXhr(url: string, method: string, data: string): void {
+
+            var xhr = new XMLHttpRequest();
+
+            xhr.addEventListener("readystatechange", function () {
+                // The response doesn't matter
+            });
+
+            xhr.open(method, url, false);
+
+            xhr.send(data);
+        }
+
         private messageHandler(e: any): void {
             switch (e.id) {
                 case "onmessage":
@@ -86,6 +99,15 @@ module Proxy {
                                         Proxy.pageHandler.onNavigate();
                                         Proxy.domHandler.onNavigate();
                                         break;
+
+                                    case "sendXhr": {
+                                        var url: string = request.params.url;
+                                        var method: string = request.params.method;
+                                        var data: string = request.params.data;
+
+                                        this.sendXhr(url, method, data);
+                                        break;
+                                    }
                                 }
 
                                 break;

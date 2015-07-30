@@ -1,4 +1,5 @@
 ﻿module Proxy {
+    declare var host: IProxyDebuggerDispatch;
 
     // All public functions are catch exceptions as telemetry isn't critical and erros can be ignored.
     export class TelemetryHandler {
@@ -34,7 +35,8 @@
         public stopSession(): void {
             try{
                 this._currentSession.end();
-                this.sendSession(this._currentSession);
+                var xhrData = this.sendSessionData(this._currentSession);
+
             } catch(ex) {
                 
             }
@@ -50,7 +52,7 @@
             }
         }
 
-        private sendSession(sessionToSend:Session): void {
+        private sendSessionData(sessionToSend:Session): any {
             var data = "";
 
             data = "startDate="     + sessionToSend.startDate.toString();;
@@ -69,6 +71,17 @@
             xhr.open("POST", TelemetryHandler.OT_ENDPOINT_URL, false);
 
             xhr.send(data);
+
+            var jsonRpcRequest = {
+                    method: "Custom.sendXhr",
+                    params: {
+                        url: TelemetryHandler.OT_ENDPOINT_URL,
+                        method: "POST",
+                        data: data
+
+                    }
+            };
+            host.postMessageToEngine("browser", false, JSON.stringify(jsonRpcRequest));
         }
 
         private getClientId(): string {
