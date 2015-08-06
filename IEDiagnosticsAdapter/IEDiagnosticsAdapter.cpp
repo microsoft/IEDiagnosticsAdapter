@@ -95,3 +95,22 @@ LRESULT IEDiagnosticsAdapter::OnMessageFromIE(UINT nMsg, WPARAM wParam, LPARAM l
     m_webSocketHander->OnMessageFromIE(utf8, proxyHwnd);
     return 0;
 }
+
+// These functions handle test timeing out. This code cannot live in AdapterTest.cpp because that thread is blocked waiting on the websocket.
+void CALLBACK TimerProc(HWND hWnd, UINT nMsg, UINT_PTR nIDEvent, DWORD dwTime)
+{
+	::KillTimer(hWnd, nIDEvent);
+	PostMessage(hWnd, WM_TEST_TIMEOUT, nIDEvent, 0);
+}
+
+LRESULT IEDiagnosticsAdapter::OnTestTimeout(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/)
+{
+	m_webSocketHander->OnMessageFromIE(/*message=*/"testTimeout", nullptr);
+	return 0;
+}
+
+LRESULT IEDiagnosticsAdapter::OnTestStart(UINT nMsg, WPARAM wParam, LPARAM lParam, _Inout_ BOOL& /*bHandled*/)
+{
+	SetTimer(1/*testNumber*/,/*timeout=*/ 1000, TimerProc);
+	return 0;
+}

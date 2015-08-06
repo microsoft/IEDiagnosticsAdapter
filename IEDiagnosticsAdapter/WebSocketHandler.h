@@ -60,7 +60,7 @@ public:
 	
 	// functions used by test code
 	HRESULT PopulateIEInstances();
-	void ConnectToUrl(const string &url);
+	IEInstance* ConnectToUrl(const string &url);
 	HRESULT SendMessageToInstance(_In_ HWND& instanceHwnd, _In_ CString& message);
 private:
     // Helper functions
@@ -79,7 +79,7 @@ private:
 
 private:
     server m_server;
-    HWND m_hWnd;
+    HWND m_AdapterhWnd;
     CString m_rootPath;
     DWORD m_port;
     map<HWND, IEInstance> m_instances;

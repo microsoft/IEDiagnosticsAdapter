@@ -7,7 +7,7 @@
 /// <disable code="SA9017" />
 /// <disable code="SA9014" />
 
-module Proxy {
+module IEDiagnosticsAdapter {
     "use strict";
     /**
      * Utility functions for verifying internal state.

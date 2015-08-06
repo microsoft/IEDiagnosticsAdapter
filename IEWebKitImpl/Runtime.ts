@@ -6,7 +6,7 @@
 /// <reference path="Interfaces.d.ts"/>
 
 /// Proxy to hande the page domain of the Chrome remote debug protocol 
-module Proxy {
+module IEDiagnosticsAdapter {
     export class RuntimeHandler implements IDomainHandler {
         constructor() {
         }

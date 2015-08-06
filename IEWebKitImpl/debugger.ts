@@ -5,7 +5,7 @@
 /// <reference path="Interfaces.d.ts"/>
 /// <reference path="Common.ts"/>
 
-module Proxy {
+module IEDiagnosticsAdapter {
     "use strict";
 
     enum BreakResumeAction {
@@ -201,7 +201,6 @@ module Proxy {
     class DebuggerProxy {
         private _debugger: IDebuggerDispatch;
         private _isAtBreakpoint: boolean;
-
         private _isAwaitingDebuggerEnableCall: boolean;
         private _isEnabled: boolean;
         private _documentMap: Map<string, number>;
@@ -257,20 +256,7 @@ module Proxy {
                         break;
 
                     case "Custom":
-                        switch (methodParts[1]) {
-                            // message I made up for when the chrome tools close/refresh
-                            case "toolsDisconnected":
-                                this.debuggerResume(BreakResumeAction.Continue);
-                                host.postMessageToEngine("browser", this._isAtBreakpoint, "{\"method\":\"Custom.toolsDisconnected\"}");
-                                this._debugger.disconnect();
-                                this._isEnabled = false;
-                                break;
-
-                            default:
-                                Assert.fail("Unreconized custom message");
-                                break;
-                        }
-
+                        this.processCustom(methodParts[1], request);
                         break;
 
                     default:
@@ -495,6 +481,11 @@ module Proxy {
                     this._debugger.disconnect();
                     this._isEnabled = false;
                     break;
+
+                case "testResetState":
+                    this.debuggerResume(BreakResumeAction.Continue);
+                    return host.postMessageToEngine("browser", this._isAtBreakpoint, "{\"method\":\"Custom.testResetState\"}");
+                    break;
             }
         }
 
@@ -596,7 +587,7 @@ module Proxy {
                                 }
                             };
                         } catch (ex) {
-                            this.postResponse(0, {
+                            this.postResponse(request.id, {
                                 error: { description: "Invalid request" }
                             });
                             return;

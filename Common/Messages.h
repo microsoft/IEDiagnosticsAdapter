@@ -14,6 +14,8 @@
 
 #define WM_CREATE_ENGINE            WM_USER + 6 // WPARAM is BSTR (id), LPARAM is NULL
 #define WM_BREAK_OCCURRED           WM_USER + 7
+#define WM_TEST_TIMEOUT             WM_USER + 8
+#define WM_TEST_START               WM_USER + 9
 
 // Messages used across processes
 UINT Get_WM_SET_CONNECTION_HWND();              // WPARAM is HWND (connectBackTo), LPARAM is NULL

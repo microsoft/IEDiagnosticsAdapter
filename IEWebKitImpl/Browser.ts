@@ -5,7 +5,7 @@
 /// <reference path="Interfaces.d.ts"/>
 /// <reference path="IE11.DiagnosticOM.d.ts" />
 
-module Proxy {
+module IEDiagnosticsAdapter {
     "use strict";
 
     declare var host: any; // todo: create some interface for host
@@ -49,7 +49,7 @@ module Proxy {
         }
 
         private addNavigateListener(): void {
-            browser.document.parentWindow.addEventListener("unload", (e: any) => {
+            browser.document.defaultView.addEventListener("unload", (e: any) => {
                 pageHandler.onNavigate();
                 domHandler.onNavigate();
             });
@@ -81,8 +81,12 @@ module Proxy {
                         case "Custom":
                             switch (methodParts[1]) {
                                 case "toolsDisconnected":
-                                    Proxy.pageHandler.onNavigate();
-                                    Proxy.domHandler.onNavigate();
+                                    IEDiagnosticsAdapter.pageHandler.onNavigate();
+                                    IEDiagnosticsAdapter.domHandler.onNavigate();
+                                    break;
+                                case "testResetState":
+                                    IEDiagnosticsAdapter.pageHandler.onNavigate();
+                                    IEDiagnosticsAdapter.domHandler.resetState();
                                     break;
                             }
 

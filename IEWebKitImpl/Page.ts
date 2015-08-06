@@ -7,7 +7,7 @@
 /// <reference path="Browser.ts"/>
 
 /// Proxy to handle the page domain of the Chrome remote debug protocol 
-module Proxy {
+module IEDiagnosticsAdapter {
     export class WebkitCookie implements IWebKitCookie {
         public name: string;
         public value: string;
@@ -74,7 +74,7 @@ module Proxy {
         }
 
         public static captureFrame(frameNumber: number, callback: IWebKitScreencastFrameCallback): void {
-            var window = browser.document.parentWindow;
+            var window = browser.document.defaultView;
             var pageScaleFactor = window.devicePixelRatio;
             var offsetTop: number = window.document.body.offsetTop;
             var deviceWidth: number = (window.innerWidth > 0) ? window.innerWidth : screen.width;
@@ -99,7 +99,7 @@ module Proxy {
         }
 
         public static captureFrame(callback: IWebKitRecordedFrameCallback): void {
-            var window = browser.document.parentWindow;
+            var window = browser.document.defaultView;
             var deviceWidth: number = (window.innerWidth > 0) ? window.innerWidth : screen.width;
             var deviceHeight: number = (window.innerHeight > 0) ? window.innerHeight : screen.height;
             var blobData: Blob = browser.takeVisualSnapshot(deviceWidth, deviceHeight, true);
@@ -324,13 +324,13 @@ module Proxy {
             });
 
             docs.forEach(doc => {
-                var securityOrigin = (<any>doc.parentWindow.location).origin || "";
+                var securityOrigin = (<any>doc.defaultView.location).origin || "";
                 var frameId = Common.getiframeId(doc);
                 var frameNavigatedParams = {
                     frame: {
                         id: frameId,
                         loaderId: this.getLoaderID(frameId),
-                        url: doc.parentWindow.location.href,
+                        url: doc.defaultView.location.href,
                         mimeType: "text/html", // todo: doc.mimetype is "HTM File", if documents ever have a different mimeType figure out how to get it dynamically
                         securityOrigin: securityOrigin
                     }
@@ -553,7 +553,7 @@ module Proxy {
 
         private getResourceTreeRecursive(doc: Document, parentFrameId: string = ""): IWebKitResult {
             // Casting to any as the default lib.d.ts does not have it on the Location object    
-            var securityOrigin = (<any>doc.parentWindow.location).origin || "";
+            var securityOrigin = (<any>doc.defaultView.location).origin || "";
             var frameId = Common.getiframeId(doc);
 
             var loaderId: string = this.getLoaderID(frameId);
@@ -561,7 +561,7 @@ module Proxy {
                 frame: {
                     id: frameId,
                     loaderId: loaderId,
-                    url: doc.parentWindow.location.href,
+                    url: doc.defaultView.location.href,
                     mimeType: "text/html", // todo: doc.mimetype is "HTM File", if documents ever have a different mimeType figure out how to get it dynamically
                     securityOrigin: securityOrigin
                 },

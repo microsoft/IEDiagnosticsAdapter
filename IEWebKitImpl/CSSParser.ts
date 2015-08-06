@@ -4,7 +4,7 @@
 
 /// <reference path="Interfaces.d.ts"/>
 
-module Proxy {
+module IEDiagnosticsAdapter {
     "use strict";
 
     /**

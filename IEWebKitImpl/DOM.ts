@@ -7,7 +7,7 @@
 /// <reference path="Browser.ts"/>
 /// <reference path="CSSParser.ts"/>
 
-module Proxy {
+module IEDiagnosticsAdapter {
     "use strict";
 
     declare var browser: DiagnosticsOM.IBrowser;
@@ -177,15 +177,27 @@ module Proxy {
             browserHandler.postResponse(request.id, processedResult);
         }
 
-        public onNavigate(): void {
+        public resetState(): void {
+            this.onNavigate(/*sendNotifications=*/false);
+            this._waitingOnGetDocumentRequestId = 0;
+            this._nextAvailableUid = 1;
+            this._nextAvailableStyleSheetUid = 1;
+            this._firstValidStyleSheetUid = 1;
+        }
+
+        public onNavigate(sendNotifications: boolean = true): void {
             for (var i = this._firstValidStyleSheetUid; i < this._nextAvailableStyleSheetUid; i++) {
-                browserHandler.postNotification("CSS.styleSheetRemoved", { styleSheetId: "" + i });
+                if (sendNotifications) {
+                    browserHandler.postNotification("CSS.styleSheetRemoved", { styleSheetId: "" + i });
+                }
             }
 
             this._firstValidStyleSheetUid = this._nextAvailableStyleSheetUid + 1;
 
-            browserHandler.postNotification("Console.messagesCleared", null);
-            browserHandler.postNotification("Debugger.globalObjectCleared", null);
+            if (sendNotifications) {
+                browserHandler.postNotification("Console.messagesCleared", null);
+                browserHandler.postNotification("Debugger.globalObjectCleared", null);
+            }
 
             // Since we have navigated, all of the stored information about nodes and CSS is no longer valid, so clear our state.
             this._mapUidToNode = new Map<number, Node>();
@@ -199,8 +211,10 @@ module Proxy {
             this._mapStyleSheetIDToStyleSheet = new Map<string, CSSStyleSheet>();
             this._mapStyleSheetIDToStyleSheetText = new Map<string, string>();
 
-            this.styleSheetAdded(browser.document); // send cssAdded notificaitons
-            browserHandler.postNotification("DOM.documentUpdated", null);
+            if (sendNotifications) {
+                this.styleSheetAdded(browser.document); // send cssAdded notificaitons
+                browserHandler.postNotification("DOM.documentUpdated", null);
+            }
         }
 
         private getNodeUid(node: Node): number {
@@ -390,6 +404,7 @@ module Proxy {
             return processedResult;
         }
 
+        // todo: this is already done in debugger.ts, merge the two functions
         private getLineColFromOffset(text: string, offset: number): ILineCol {
             if (offset === 0) {
                 return { line: 0, column: 0 };
@@ -742,7 +757,7 @@ module Proxy {
                     doc = doc.parentNode;
                 }
 
-                var response: IgetValidWindowResponse = Common.getValidWindow((<Document>doc).parentWindow, (<HTMLFrameElement>ieNode).contentWindow);
+                var response: IgetValidWindowResponse = Common.getValidWindow((<Document>doc).defaultView, (<HTMLFrameElement>ieNode).contentWindow);
                 if (response.isValid) {
                     var frameDoc: Document = response.window.document;
                     if (!this._sentCSS.has(frameDoc)) {
@@ -815,12 +830,11 @@ module Proxy {
             }
 
             // Send the response back over the websocket
-            var response: any = {}; // todo add a type for this. It has no id so it's not an IWebKitResponse
-            response.method = "DOM.setChildNodes";
-            response.params = {};
-            response.params.parentId = id;
-            response.params.nodes = nodeArray;
-            this._windowExternal.sendMessage("postMessage", JSON.stringify(response));
+            var setChildNodesParams = {
+                parentId: id,
+                nodes: nodeArray
+            };
+            browserHandler.postNotification("DOM.setChildNodes", setChildNodesParams);
 
             return {}; // actual response to setChildNodes is empty.
         }

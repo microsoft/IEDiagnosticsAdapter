@@ -14,15 +14,14 @@
 #include <Psapi.h>
 #include <Wininet.h>
 
-WebSocketHandler::WebSocketHandler(_In_ LPCWSTR rootPath, _In_ HWND hWnd) :
+WebSocketHandler::WebSocketHandler(_In_ LPCWSTR rootPath, _In_ HWND adapterhWnd) :
 m_rootPath(rootPath),
-m_hWnd(hWnd),
+m_AdapterhWnd(adapterhWnd),
 m_port(9222),
-m_adapterTest(this, TestMode::NORMAL)
+m_adapterTest(this, adapterhWnd, TestMode::NORMAL)
 {
     // Initialize the websocket server
     m_server.clear_access_channels(websocketpp::log::alevel::all);
-
     m_server.set_http_handler(std::bind(&WebSocketHandler::OnHttp, this, std::placeholders::_1));
     m_server.set_validate_handler(std::bind(&WebSocketHandler::OnValidate, this, std::placeholders::_1));
     m_server.set_message_handler(std::bind(&WebSocketHandler::OnMessage, this, std::placeholders::_1, std::placeholders::_2));
@@ -352,6 +351,8 @@ void WebSocketHandler::RunServer() {
     HRESULT hrCoInit = ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     shared_ptr<HRESULT> spCoInit(&hrCoInit, [](const HRESULT* hrCom) -> void { if (SUCCEEDED(*hrCom)) { ::CoUninitialize(); } });
 
+	// initlize the test infrasructure here, so all test code consistantly runs on this thread
+	m_adapterTest.init();
     // run the server
     while (true) {
         try
@@ -384,7 +385,7 @@ void WebSocketHandler::OnMessageFromIE(string message, HWND proxyHwnd)
 }
 
 void WebSocketHandler::OnMessageFromIEHandler(string message, HWND proxyHwnd) {
-	m_adapterTest.handleRecord("test:" + message);
+	m_adapterTest.handleRecord("resp:" + message); //short for response
 	if (m_adapterTest.m_testMode == TestMode::TEST)
 	{
 		m_adapterTest.ValidateMessageFromIE(message, proxyHwnd);
@@ -414,7 +415,7 @@ void WebSocketHandler::OnMessageFromIEHandler(string message, HWND proxyHwnd) {
 }
 
 // Function to let tests automaticly connect to the correct tab
-void WebSocketHandler::ConnectToUrl(const string &url) {
+IEInstance* WebSocketHandler::ConnectToUrl(const string &url) {
 	for (auto& i : m_instances)
 	{
 		if (i.second.url == CString(url.c_str()) && ::IsWindow(i.second.hwnd))
@@ -422,14 +423,13 @@ void WebSocketHandler::ConnectToUrl(const string &url) {
 			HRESULT hr = this->ConnectToInstance(i.second);
 			if (hr == S_OK)
 			{
-				cout << "Connected to " << url << " begining test" << endl;
-				m_adapterTest.SendTestMessagesToIE(i.second.connectionHwnd);
-				return;
+				return &i.second;
 			}
 		}
 	}
 	
 	assert(false && "Could not find IE instance to attach to");
+	return nullptr;
 }
 
 
@@ -477,7 +477,7 @@ HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
             FAIL_IF_NOT_S_OK(hr);
 
             // Send our hwnd to the proxy so it can connect back
-            BOOL succeeded = ::PostMessage(hwnd, Get_WM_SET_CONNECTION_HWND(), reinterpret_cast<WPARAM>(m_hWnd), NULL);
+            BOOL succeeded = ::PostMessage(hwnd, Get_WM_SET_CONNECTION_HWND(), reinterpret_cast<WPARAM>(m_AdapterhWnd), NULL);
             ATLENSURE_RETURN_HR(succeeded, E_FAIL);
 
             // Inject script onto the browser thread
@@ -530,7 +530,7 @@ HRESULT WebSocketHandler::SendMessageToInstance(_In_ HWND& instanceHwnd, _In_ CS
     HRESULT hr = ::StringCbCopyEx(reinterpret_cast<LPWSTR>(pBuffer.get() + pData->uMessageOffset), ucbStringSize, message, NULL, NULL, STRSAFE_IGNORE_NULLS);
     FAIL_IF_NOT_S_OK(hr);
 
-    ::SendMessage(instanceHwnd, WM_COPYDATA, reinterpret_cast<WPARAM>(m_hWnd), reinterpret_cast<LPARAM>(&copyData));
+    ::SendMessage(instanceHwnd, WM_COPYDATA, reinterpret_cast<WPARAM>(m_AdapterhWnd), reinterpret_cast<LPARAM>(&copyData));
 
     return hr;
 }
