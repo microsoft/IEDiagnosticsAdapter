@@ -115,6 +115,12 @@ module IEDiagnosticsAdapter {
         longDocumentId: number;
     }
 
+    interface ILocation {
+        lineNumber: number;
+        columnNumber?: number;
+        scriptId: string;
+    }
+
     interface IPropertyInfo {
         propertyId: string;
         name: string;
@@ -284,7 +290,7 @@ module IEDiagnosticsAdapter {
             return this._lineEndingsMap.get(docId);
         }
 
-        private getLineColumnFromOffset(docId: number, offset: number): any {
+        private getLocationFromOffset(docId: number, offset: number): ILocation {
             var lineEndings = this.getLineEndings(docId);
 
             var columnNumber = 0;
@@ -578,7 +584,7 @@ module IEDiagnosticsAdapter {
                             charCount += request.params.columnNumber;
 
                             var info = this._debugger.addCodeBreakpoint(docId, charCount, request.params.condition, false);
-                            var location = this.getLineColumnFromOffset(docId, info.location.start);
+                        var location = this.getLocationFromOffset(docId, info.location.start);
 
                             processedResult = {
                                 result: {
@@ -732,7 +738,7 @@ module IEDiagnosticsAdapter {
                 callFrames.push({
                     callFrameId: "" + frames[i].callFrameId,
                     functionName: frames[i].functionName,
-                    location: this.getLineColumnFromOffset(frames[i].location.docId, frames[i].location.start),
+                    location: this.getLocationFromOffset(frames[i].location.docId, frames[i].location.start),
                     scopeChain: scopes,
                     this: null
                 });
