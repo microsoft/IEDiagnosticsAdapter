@@ -566,42 +566,52 @@ module IEDiagnosticsAdapter {
                 case "searchInContent":
                     break;
 
-                case "setBreakpoint":
-                    break;
+                case "setBreakpoint":  // accepts location (scriptId, lineNumber, columnNumber?) and condition?; returns breakpointId and actualLocation
+                case "setBreakpointByUrl":  // accepts lineNumber, url?, urlRegex?, columnNumber?, condition?; returns breakpointId and locations
+                    try {
+                        var docId: number;
+                        var lineNumber: number;
+                        var columnNumber: number;
 
-                case "setBreakpointByUrl":
-                    if (this._documentMap.has(request.params.url)) {
-                        try {
-                            var docId: number = this._documentMap.get(request.params.url);
-
-                            var lineEndings = this.getLineEndings(docId);
-
-                            var charCount = 0;
-                            for (var i = 0; i < request.params.lineNumber; i++) {
-                                charCount += lineEndings[i];
-                            }
-
-                            charCount += request.params.columnNumber;
-
-                            var info = this._debugger.addCodeBreakpoint(docId, charCount, request.params.condition, false);
-                        var location = this.getLocationFromOffset(docId, info.location.start);
-
+                        if (request.params.location) {
+                            docId = request.params.location.scriptId;
+                            request.params.lineNumber = request.params.location.lineNumber;
+                            request.params.columnNumber = request.params.location.columnNumber ? 0 : request.params.location.columnNumber;
+                        }
+                        else if (this._documentMap.has(request.params.url)) {
+                            docId = this._documentMap.get(request.params.url);
+                        }
+                        else {
                             processedResult = {
-                                result: {
-                                    breakpointId: "" + info.breakpointId,
-                                    locations: [location]
-                                }
+                                error: { description: "Pending breakpoints and regex breakpoints not implemented" }
                             };
-                        } catch (ex) {
-                            this.postResponse(request.id, {
-                                error: { description: "Invalid request" }
-                            });
+
                             return;
                         }
-                    } else {
+
+                        var lineEndings = this.getLineEndings(docId);
+
+                        var charCount = 0;
+                        for (var i = 0; i < request.params.lineNumber; i++) {
+                            charCount += lineEndings[i];
+                        }
+
+                        charCount += request.params.columnNumber ? 0 : request.params.columnNumber;
+
+                        var info = this._debugger.addCodeBreakpoint(docId, charCount, request.params.condition, false);
+                        var location = this.getLocationFromOffset(docId, info.location.start);
+
                         processedResult = {
-                            error: { description: "Not implemented" }
+                            result: {
+                                breakpointId: "" + info.breakpointId,
+                                locations: [location]
+                            }
                         };
+                    } catch (ex) {
+                        this.postResponse(request.id, {
+                            error: { description: "Invalid request" }
+                        });
+                        return;
                     }
 
                     break;
