@@ -567,7 +567,7 @@ module IEDiagnosticsAdapter {
                     break;
 
                 case "setBreakpoint":  // accepts location (scriptId, lineNumber, columnNumber?) and condition?; returns breakpointId and actualLocation
-                case "setBreakpointByUrl":  // accepts lineNumber, url?, urlRegex?, columnNumber?, condition?; returns breakpointId and locations
+                case "setBreakpointByUrl":  // accepts lineNumber, url?, urlRegex?, columnNumber?, condition?; returns breakpointId and locations[]
                     try {
                         var docId: number;
                         var lineNumber: number;
@@ -601,12 +601,21 @@ module IEDiagnosticsAdapter {
                         var info = this._debugger.addCodeBreakpoint(docId, charCount, request.params.condition, false);
                         var location = this.getLocationFromOffset(docId, info.location.start);
 
-                        processedResult = {
-                            result: {
-                                breakpointId: "" + info.breakpointId,
-                                locations: [location]
-                            }
-                        };
+                        if (method == "setBreakpoint") {
+                            processedResult = {
+                                result: {
+                                    breakpointId: "" + info.breakpointId,
+                                    actualLocation: location
+                                }
+                            };
+                        } else {
+                            processedResult = {
+                                result: {
+                                    breakpointId: "" + info.breakpointId,
+                                    locations: [location]
+                                }
+                            };
+                        }
                     } catch (ex) {
                         this.postResponse(request.id, {
                             error: { description: "Invalid request" }
