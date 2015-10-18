@@ -688,6 +688,10 @@ module IEDiagnosticsAdapter {
         private debuggerResume(action: BreakResumeAction): void {
             this._debugger.resume(action);
             this._isAtBreakpoint = false;
+
+            // Trident does not give us a resumed notification, only 'onbreak'
+            // Send a synthetic one
+            this.postNotification("Debugger.resumed", null);
         }
 
         private onAddDocuments(documents: IDocument[]): void {
