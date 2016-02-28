@@ -772,7 +772,7 @@ module IEDiagnosticsAdapter {
                         localName: frameDoc.localName,
                         nodeValue: frameDoc.nodeValue,
                         documentURL: frameDoc.URL,
-                        baseURL: frameDoc.URL,
+                        baseUrl: frameDoc.URL,
                         xmlVersion: frameDoc.xmlVersion,
                         childNodeCount: this.numberOfNonWhitespaceChildNodes(frameDoc)
                     };
@@ -849,7 +849,7 @@ module IEDiagnosticsAdapter {
                 localName: browser.document.localName || "",
                 nodeValue: browser.document.nodeValue || "",
                 documentURL: browser.document.URL,
-                baseURL: browser.document.URL, // fixme: this line or the above line is probably not right
+                baseUrl: browser.document.URL, // fixme: this line or the above line is probably not right
                 xmlVersion: browser.document.xmlVersion,
             };
 

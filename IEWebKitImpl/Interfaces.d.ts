@@ -73,6 +73,7 @@ declare module IEDiagnosticsAdapter {
         publicId?: string;
         systemId?: string;
         value?: string;
+        baseUrl?: string;
         xmlVersion?: string;
     }
 
