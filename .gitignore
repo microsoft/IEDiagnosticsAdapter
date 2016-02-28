@@ -74,6 +74,7 @@ ipch/
 *.aps
 *.ncb
 *.opensdf
+*.opendf
 *.sdf
 *.cachefile
 
