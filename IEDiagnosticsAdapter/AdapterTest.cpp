@@ -84,7 +84,7 @@ void AdapterTest::runTest(const std::string& testFile) {
 		return;
 	}
 
-	ifstream in;
+	std::ifstream in;
 	in.open(testFile);
 	char buffer[MAX_RECORDED_STRING_LENGTH];
 
