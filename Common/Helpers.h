@@ -31,4 +31,6 @@ namespace Helpers
 
     CStringA EscapeJsonString(_In_ const CString& value);
     CStringA GetFileVersion(_In_ LPCWSTR filePath);
+
+	CStringA GetLastErrorMessage();
 }

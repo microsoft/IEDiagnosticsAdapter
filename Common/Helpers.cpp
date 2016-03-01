@@ -342,4 +342,13 @@ namespace Helpers
                 
         return ss.str().c_str();
     }
+
+	CStringA GetLastErrorMessage()
+	{
+		std::stringstream ss;
+		ss << "Error Code: ";
+		ss << GetLastError();
+
+		return ss.str().c_str();
+	}
 }
