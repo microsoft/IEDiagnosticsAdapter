@@ -62,6 +62,7 @@ declare module IEDiagnosticsAdapter {
         children?: INode[];
         contentDocument?: INode;
         documentURL?: string;
+        baseURL?: string,
         frameId?: string;
         internalSubnet?: string;
         localName: string;
