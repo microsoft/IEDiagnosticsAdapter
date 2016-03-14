@@ -9,6 +9,7 @@
 #include "resource.h"
 #include "Strsafe.h"
 #include <Psapi.h>
+#include <boost/thread.hpp>
 
 const CStringA IEDiagnosticsAdapter::s_Protocol_Version = CStringA("1.1");
 

@@ -10,6 +10,7 @@
 #include "Strsafe.h"
 #include "AdapterTest.h"
 #include <VersionHelpers.h>
+#include <boost/bind.hpp>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <Psapi.h>
 #include <Wininet.h>
