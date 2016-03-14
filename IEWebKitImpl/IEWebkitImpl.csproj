@@ -32,6 +32,7 @@
     <TypeScriptCompile Include="IE11.DiagnosticOM.d.ts" />
     <TypeScriptCompile Include="Interfaces.d.ts" />
     <TypeScriptCompile Include="Page.ts" />
+    <TypeScriptCompile Include="BrowserTool.ts" />
     <TypeScriptCompile Include="Runtime.ts" />
   </ItemGroup>
   <ItemGroup />

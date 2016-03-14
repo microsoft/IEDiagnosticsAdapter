@@ -3,7 +3,7 @@
 //
 
 #pragma once
-
+#define USE_EDGEMODE_JSRT 
 #include <jsrt.h>
 
 class JsValueRefPtr

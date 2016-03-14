@@ -113,6 +113,10 @@ module IEDiagnosticsAdapter {
 
                             break;
 
+                        case "BrowserTool":
+                            browserToolHandler.processMessage(methodParts[1], request);
+                            break;
+
                         default:
                             this.postResponse(request.id, {});
                             break;

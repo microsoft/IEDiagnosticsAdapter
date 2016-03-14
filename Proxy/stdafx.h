@@ -12,6 +12,7 @@
 
 #define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS
 #define _SCL_SECURE_NO_WARNINGS
+#define USE_EDGEMODE_JSRT 
 
 #include <windows.h>
 #include <MsHtml.h>

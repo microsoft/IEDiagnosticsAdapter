@@ -446,7 +446,7 @@ HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
     {
         CString path(m_rootPath);
 
-        if (instance.is64BitTab)
+        if (true)//instance.is64BitTab)
         {
             #ifdef NDEBUG
                 std::cout << "DEBUG MESSAGE: Attempting to attach to 64 bit tab" << std::endl;
@@ -488,6 +488,7 @@ HRESULT WebSocketHandler::ConnectToInstance(_In_ IEInstance& instance)
             hr = this->InjectScript(L"browser", L"Runtime.js", IDR_RUNTIME_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"Page.js", IDR_PAGE_SCRIPT, hwnd);
             hr = this->InjectScript(L"browser", L"CSSParser.js", IDR_CSSPARSER_SCRIPT, hwnd);
+			hr = this->InjectScript(L"browser", L"BrowserTool.js", IDR_BROWSERTOOL_SCRIPT, hwnd);
 
             // Inject script  onto the debugger thread
             hr = this->InjectScript(L"debugger", L"Assert.js", IDR_ASSERT_SCRIPT, hwnd);

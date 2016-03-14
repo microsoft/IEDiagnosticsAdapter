@@ -30,10 +30,10 @@ HRESULT ScriptEngineHost::Initialize(_In_ HWND proxyHwnd)
     m_proxyHwnd = proxyHwnd;
 
     // Create the Chakra runtime used for running script
-    JsErrorCode jec = ::JsCreateRuntime(JsRuntimeAttributeNone, JsRuntimeVersion11, nullptr, &m_scriptRuntime);
+    JsErrorCode jec = ::JsCreateRuntime(JsRuntimeAttributeNone, nullptr, &m_scriptRuntime);
     FAIL_IF_ERROR(jec);
 
-    jec = ::JsCreateContext(m_scriptRuntime, nullptr, &m_scriptContext);
+    jec = ::JsCreateContext(m_scriptRuntime, &m_scriptContext);
     FAIL_IF_ERROR(jec);
 
     return S_OK;
@@ -394,7 +394,7 @@ HRESULT ScriptEngineHost::StartDebugging()
     hr = spPDM->GetDefaultApplication(&spDebugApp);
     if (hr == S_OK || hr == HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS)) // IE might have already started debugging for us
     {
-        JsErrorCode jec = ::JsStartDebugging(spDebugApp);
+        JsErrorCode jec = ::JsStartDebugging();
         FAIL_IF_ERROR(jec);
     }
 

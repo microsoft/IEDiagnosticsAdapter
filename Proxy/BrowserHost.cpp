@@ -41,7 +41,8 @@ HRESULT BrowserHost::Initialize(_In_ HWND proxyHwnd, _In_ IUnknown* pWebControl)
     hr = spEngineProvider->CreateDiagnosticsScriptEngine(this, m_enableDebuggingInjectedCode, 0, &m_spDiagnosticsEngine);
     FAIL_IF_NOT_S_OK(hr);
 
-    hr = this->DispEventAdvise(m_spWebControl);
+	hr = m_spDiagnosticsEngine->EvaluateScript(L"browser.addEventListener('beforeScriptExecute', function(e) { external.sendMessage('postMessage', JSON.stringify(browser.document.location.href)); });", L"remote.js");
+	///hr = this->DispEventAdvise(m_spWebControl);
     FAIL_IF_NOT_S_OK(hr);
 
     return hr;
