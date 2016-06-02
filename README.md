@@ -11,8 +11,9 @@ Simply download a release on to your hard drive.
 1. Download the current release
 2. Extract/Copy the files into a folder on disk where you wish to run the file from. We currently recommend a folder on the desktop.
 3. You should end up with IEDiagnosticsAdapter.exe, Proxy.dll, and Proxy64.dll files inside the folder
-4. If you plan to use this tool against IE in *Enhanced Protected Mode* (note, this includes 64 bit machines), 
-    If you're on Windows 8 or later, navigate to the directory containing **Proxy64.dll** and type `icacls proxy64.dll /grant "ALL APPLICATION PACKAGES":(RX)` in an Administrator Command Prompt to grant necessary permissions. 
+4. If you plan to use this tool against IE in *Enhanced Protected Mode* (note, this includes 64 bit machines), and you're on Windows 8 or later, you should grant the 'ALL APPLICATION PACKAGES' group the necessary rights. Note group 'ALL APPLICATION PACKAGES' is locale dependent. You can do that by:
+    * Navigating to the directory containing **Proxy64.dll** and type `icacls proxy64.dll /grant "ALL APPLICATION PACKAGES":(RX)` in an Administrator Command Prompt to grant necessary permissions.
+    * Browsing to the directory containing **Proxy64.dll**. Right-click this file, click 'Properties'. Open the 'security' tab and click 'edit'. Add the 'ALL APPLICATION PACKAGES' group and allow this group the 'Read & excute' and 'Read' rights. 
 
 ## Running
 
